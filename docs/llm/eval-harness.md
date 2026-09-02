@@ -81,11 +81,11 @@ floor.
 
 Three questions, not one. Each needs a different sweep of the same sets:
 
-| Question                                                    | Sweep                                            | Why it matters                                                                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| **What is the smallest model that clears the quality bar?** | One family, several sizes (4B and 8B at minimum) | An 8B Q4 does not fit a 4 GB laptop GPU. If 4B holds up, it is the better recommendation ([TD-07](../project/tech-debt.md)) |
-| **How much does output vary across model families?**        | Two families at the same size                    | Decides between a supported-model allowlist and per-model prompt variants ([TD-04](../project/tech-debt.md))                |
-| **Does constrained decoding cost prose quality?**           | Same model, `format` on versus off               | [ADR-0002](../architecture/adr/0002-constrained-decoding.md) accepted this risk without measuring it                        |
+| Question                                             | Sweep                              | Why it matters                                                                                                                                           |
+| ---------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Does `qwen3:4b` clear the quality bar?**           | The recommended model alone        | It is the only model installed, and both dev and production run it. Failing here escalates to 8B ([TD-07](../project/tech-debt.md))                      |
+| **How much does output vary across model families?** | Two families at the same size      | Deferred: only one model is installed ([TD-09](../project/tech-debt.md)). Decides allowlist versus per-model variants ([TD-04](../project/tech-debt.md)) |
+| **Does constrained decoding cost prose quality?**    | Same model, `format` on versus off | [ADR-0002](../architecture/adr/0002-constrained-decoding.md) accepted this risk without measuring it                                                     |
 
 The third is new and easy to overlook: constraining the sampler to a grammar guarantees the output _parses_, and
 says nothing about whether it reads well. For a product whose value is the quality of the prose, that is worth a

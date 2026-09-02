@@ -19,6 +19,21 @@ Each entry: date · decision · rationale · who decided.
 
 ---
 
+## 2026-09-02 — One model, and it is the production one
+
+**Decision.** Install only `qwen3:4b` (~2.5 GB). It is both the development model and the recommended one,
+superseding the earlier split of "4B for development, 8B for quality". The model must also run **fully on the GPU**,
+which makes the context budget a performance constraint rather than only a prompt one.
+**Rationale.** Disk and VRAM: an 8B Q4 needs ~5 GB and does not fit the 4 GB laptop GPU, so it would spill onto the
+CPU — on the author's machine and on a large share of users'. Building against a model neither party can run well is
+how quality decisions get made on imaginary hardware. Two reasons for a larger model are already gone: schema
+conformance moved to the runtime ([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) and distractor
+assembly moved into code.
+**Cost, accepted.** Cross-family variance becomes unmeasurable ([TD-09](../project/tech-debt.md)), so
+[TD-04](../project/tech-debt.md) stays open; and 4B clearing the quality bar is a hypothesis, not a result
+([TD-07](../project/tech-debt.md)).
+**Decided by.** Author.
+
 ## 2026-09-02 — M-1 implementation decisions
 
 **Decision.** Four smaller choices made while building the skeleton: (a) the stub `LlmAdapter` is the default when

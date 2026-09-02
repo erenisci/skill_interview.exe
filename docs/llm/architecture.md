@@ -16,8 +16,8 @@ updated: 2026-09-02
 
 The model is a _writer working from supplied material_, never a source of facts. Every card is produced from text
 retrieved during that job. If retrieval fails, the job fails — the model is never allowed to fall back on its own
-memory. That single rule is the product's main defence, because an 8B model confidently inventing the difference
-between nginx and Traefik destroys the only thing this product sells.
+memory. That single rule is the product's main defence, because a small local model confidently inventing the
+difference between nginx and Traefik destroys the only thing this product sells.
 
 Generation is asynchronous and the user never waits on it. This is also what makes the memory budget work: the model
 is loaded for a job and released when the queue drains ([../architecture/adr/0001-initial-architecture.md](../architecture/adr/0001-initial-architecture.md)).
@@ -27,7 +27,7 @@ is loaded for a job and released when the queue drains ([../architecture/adr/000
 | Aspect      | Choice                                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------------------------ |
 | Runtime     | Ollama, local HTTP at `localhost:11434`                                                                      |
-| Recommended | 8B-class instruct, Q4 — **under review**, see below                                                          |
+| Recommended | `qwen3:4b` (4B instruct, Q4, ~2.5 GB) — a working hypothesis, see below                                      |
 | Selection   | Read from Ollama's installed list; the user picks                                                            |
 | Structured  | JSON Schema sent as `format` on every request ([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) |
 | Residency   | `keep_alive` of a few minutes during a job run; `release()` sends `keep_alive: 0` when the queue drains      |
@@ -44,15 +44,31 @@ So `keep_alive` is passed explicitly: a short window during a job run, so consec
 and `0` from `release()` when the queue drains. This is the concrete implementation of ADR-0001's model-release rule,
 not an optimization layered on top of it.
 
-### Is 8B the right recommendation? — open
+### Why 4B, and what would overturn it
 
-An 8B Q4 model needs roughly 5 GB. The development machine has a 4 GB laptop GPU, where it does not fit and spills to
-CPU. That configuration is common, so a good share of users would be in the same position: the app would work, but
-slowly, on the hardware they actually own.
+An 8B Q4 model needs roughly 5 GB and does not fit the 4 GB laptop GPU this is developed on — a common
+configuration, so a good share of users would be in the same position: the app would work, but slowly, on the
+hardware they actually own.
 
-This reframes the M-7 question. It is no longer only "which model family" but **"what is the smallest model that
-clears the quality bar"**. If a 4B model holds up on distractor plausibility and grounding, recommending it is the
-better product decision — it reaches more machines and generates faster. The answer needs eval data, not a guess.
+So **development and production use the same 4B model**. There is no separate "dev model" and "quality model": the
+model being built against is the one being recommended, which removes a whole class of decisions made on hardware
+nobody has.
+
+Two of the reasons a larger model would have been needed are already gone. Schema conformance moved to the runtime
+([ADR-0002](../architecture/adr/0002-constrained-decoding.md)), and distractor assembly moved into code, drawing on
+sibling skills' real properties rather than the model's invention
+([../architecture/system-design.md](../architecture/system-design.md)). What is left for the model is writing prose
+from supplied text, classifying, and picking the right candidate from a short list — the tasks a 4B model is most
+likely to handle.
+
+**This is a hypothesis, not a measured result.** The eval harness exists to falsify it. It would be overturned by:
+
+- groundedness or distractor plausibility below the bar on the eval sets
+- Turkish output degrading enough to be unusable, when English is fine
+- resolution refusal failing — a model that always picks _something_ rather than answering "none"
+
+Any of those escalates to an 8B model and a revised recommendation. Until then, one model is installed, and the disk
+and VRAM cost stays at ~2.5 GB.
 
 ### What is still model-dependent
 
@@ -65,8 +81,10 @@ and to the user that variance looks like a product bug. The two candidate answer
 - a **supported-model allowlist**, refusing or warning on anything else, or
 - **per-model prompt variants** selected by the model id.
 
-M-7 runs the eval suite across at least two model families to decide. Tracked as [TD-04](../project/tech-debt.md) and
-an open question in [../product/prd.md](../product/prd.md).
+Deciding between them needs two model families, and only one model is installed by choice
+([TD-09](../project/tech-debt.md)). So this stays open longer than planned: v1 targets the model it is built on, and
+the comparison happens when distribution makes it matter. Tracked as [TD-04](../project/tech-debt.md) and an open
+question in [../product/prd.md](../product/prd.md).
 
 ## Data Sources
 

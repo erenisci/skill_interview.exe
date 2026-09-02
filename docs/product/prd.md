@@ -21,7 +21,7 @@ Existing tools do not close it. Anki requires writing the cards by hand — whic
 assistants are one-shot: no daily rhythm, no memory of what you already reviewed, and not local. Neither
 knows the relationships between the specific technologies on _your_ CV.
 
-Why now: consumer-hardware local models (8B class) are finally good enough for this task, and grounding
+Why now: local models small enough to run on an ordinary laptop GPU are finally good enough for this task, and grounding
 them in web search keeps hallucination manageable.
 
 ## Goals
@@ -85,9 +85,9 @@ Per-feature behaviour is in [feature-specs.md](feature-specs.md).
 
 ## Open Questions
 
-- **How small can the model be?** The 8B-class assumption was made on expected quality, before any hardware was
-  measured. An 8B Q4 needs ~5 GB and does not fit a 4 GB laptop GPU — a common configuration. If a 4B model clears
-  the quality bar it is the better recommendation, because it reaches more machines. M-7 must answer this.
+- **Does a 4B model clear the quality bar?** `qwen3:4b` is now both the development and the recommended model,
+  chosen because an 8B Q4 needs ~5 GB and does not fit a 4 GB laptop GPU — a common configuration. This is a
+  hypothesis the eval harness exists to falsify, not a measured result; failing it escalates to 8B.
   See [../llm/architecture.md](../llm/architecture.md) and [TD-07](../project/tech-debt.md).
 - Recommended-model policy: a supported-model allowlist, or per-model prompt variants? Narrowed by
   [ADR-0002](../architecture/adr/0002-constrained-decoding.md), which makes schema conformance a runtime guarantee —

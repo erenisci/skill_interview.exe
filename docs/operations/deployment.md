@@ -35,7 +35,7 @@ Before building a release:
 - Migrations tested against a **copy of a real, populated database**, then the app opened against it.
 - `CHANGELOG.md` promoted and `package.json` version bumped in the same commit.
 
-On the user's side, the app requires Windows 10 or 11, Ollama installed and running, and an 8B-class model pulled.
+On the user's side, the app requires Windows 10 or 11, Ollama installed and running, and `qwen3:4b` pulled (~2.5 GB).
 The app checks all three at startup and routes to the setup screen rather than failing
 ([../product/feature-specs.md](../product/feature-specs.md)).
 

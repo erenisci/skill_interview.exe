@@ -74,16 +74,28 @@ a UI that inflates the baseline is treated as a defect.
 **Remediation.** Cheap to add later — `model` and `prompt_version` are already stored per artefact, so a history
 table is additive.
 
-### TD-07 — The recommended model may not fit the hardware users have
+### TD-07 — The recommended model is a hypothesis, not a measured result — **reframed 2026-09-02**
 
-**What.** The docs assume an 8B-class model (~5 GB at Q4). The development machine has a 4 GB laptop GPU, where it
-does not fit and spills to CPU.
-**Why it exists.** The 8B recommendation was chosen on expected quality, before any hardware was measured against it.
-**Cost.** A common laptop configuration gets slow generation, and the author cannot comfortably run the model the
-product recommends — so quality decisions risk being made on a model that neither he nor typical users will run.
-**Remediation.** M-7's scope now includes "what is the smallest model that clears the quality bar", not only "which
-model family". If a 4B model holds up on distractor plausibility and grounding, recommending it reaches more machines
-and generates faster. Discussed in [../llm/architecture.md](../llm/architecture.md).
+**What.** `qwen3:4b` is now both the development and the recommended model, chosen because an 8B Q4 (~5 GB) does not
+fit the 4 GB laptop GPU this is built on — a common configuration. Nothing has yet shown that 4B clears the quality
+bar.
+**Why it exists.** Choosing before measuring was unavoidable: the eval harness needs a working pipeline, and the
+pipeline needs a model. Picking the small one first means the risk surfaces early rather than after the product is
+tuned around hardware most users do not have.
+**Cost.** If 4B falls short, prompts tuned against it may need reworking for a larger model, and the recommendation
+changes.
+**Remediation.** M-7 asks "does 4B clear the bar", not "which size". The falsifying conditions are written down in
+[../llm/architecture.md](../llm/architecture.md); any of them escalates to 8B.
+
+### TD-09 — One model installed, so cross-family variance is unmeasurable
+
+**What.** Only `qwen3:4b` is installed, by choice — disk space, and the model in development is deliberately the one
+in production.
+**Why it exists.** A second model costs another 2.5–5 GB to answer a question that does not block v1.
+**Cost.** [TD-04](#td-04--prompts-are-tuned-against-one-model) cannot be closed. The allowlist-versus-variants
+decision stays open, and prompt fragility across model families stays unmeasured.
+**Remediation.** Pull a second family (`gemma3:4b`) when distribution matters, or when a user reports output that
+looks like a product bug on a model we never tried.
 
 ### TD-08 — Toolchain pinned by a peer-dependency conflict
 

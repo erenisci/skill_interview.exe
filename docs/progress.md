@@ -41,8 +41,10 @@ the development machine yet. M-1 is not ticked until they do.
 ## Blocked
 
 - **M-1 sign-off needs a local model.** `listModels()` and one real generation round-trip cannot be verified until
-  Ollama is installed and a model pulled. Everything else in M-1 is done. Plan: `qwen3:4b` for development (fits the
-  4 GB VRAM on this machine), `gemma3:4b` as a second family, `qwen3:8b` for quality evals.
+  Ollama is installed and a model pulled. Everything else in M-1 is done.
+  Plan: **one model, `qwen3:4b`** — development and production are deliberately the same, and it fits the 4 GB VRAM
+  on this machine entirely. First check after pulling is `ollama ps` reporting `100% GPU`; a CPU share means
+  generation has silently become minutes-long ([operations/performance.md](operations/performance.md)).
 
 ## Next Up
 
@@ -55,10 +57,11 @@ the development machine yet. M-1 is not ticked until they do.
 
 ## Open Decisions
 
-- **Recommended model size is now an open question, not a settled assumption.** The docs assume an 8B-class model,
-  but an 8B Q4 (~5 GB) does not fit the 4 GB VRAM on the development machine — a very common laptop configuration.
-  M-7 must therefore answer "what is the smallest model that clears the quality bar", not only "which model family".
-  See [llm/architecture.md](llm/architecture.md) and [TD-04](project/tech-debt.md).
+- **`qwen3:4b` is the recommended model, as a hypothesis.** One model is installed, and development and production
+  deliberately share it. Nothing has yet shown it clears the quality bar; the eval harness exists to falsify it, and
+  the falsifying conditions are written down in [llm/architecture.md](llm/architecture.md) ([TD-07](project/tech-debt.md)).
+- **Cross-family prompt variance is unmeasurable with one model** ([TD-09](project/tech-debt.md)), so
+  [TD-04](project/tech-debt.md) stays open longer than planned. Accepted for v1.
 - Supported-model allowlist versus per-model prompt variants — narrowed by [ADR-0002](architecture/adr/0002-constrained-decoding.md),
   which makes schema conformance a runtime guarantee; what remains model-dependent is content quality.
 - Whether constrained decoding costs prose quality. Unmeasured, and now in scope for the eval harness.

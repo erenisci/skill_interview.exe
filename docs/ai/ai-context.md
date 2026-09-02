@@ -24,7 +24,7 @@ Solo author. No deadline. MIT licensed, open source, but `docs/` is not publishe
 | Fact           | Detail                                                                                                      |
 | -------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Stack**      | Electron + TypeScript + React; Node main process; `better-sqlite3` with FTS5                                |
-| **LLM**        | The **user's own** Ollama model, 8B class. Not an API. Behind `LlmAdapter`                                  |
+| **LLM**        | The user's own Ollama model — `qwen3:4b`, dev and production the same. Not an API. Behind `LlmAdapter`      |
 | **Search**     | GitHub API + official docs + Wikipedia, key-less. Every result passes resolution before it grounds anything |
 | **Platform**   | Windows only. Mobile is permanently out of scope                                                            |
 | **Scheduling** | FSRS                                                                                                        |

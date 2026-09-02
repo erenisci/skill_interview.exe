@@ -21,10 +21,17 @@ updated: 2026-09-02
 | Model       | `qwen3:4b` for development | ~2.5 GB, Q4 quantized — fits a 4 GB GPU entirely          |
 | Disk        | ~10 GB free                | Model + node_modules + build output                       |
 
-**Which model.** Development and quality measurement want different models. A 4B model is enough to exercise the
-pipeline and loads fast; quality is judged on the 8B class, which spills to CPU on a 4 GB card and is slow but
-acceptable as a batch job. Whether 8B is the right _recommended_ model for users is an open question —
-see [llm/architecture.md](llm/architecture.md).
+**One model, and it is the production one.** `qwen3:4b` is what is developed against _and_ what the app recommends,
+so no decision is ever made on hardware nobody has. It is ~2.5 GB and fits a 4 GB GPU entirely, which matters: an 8B
+Q4 needs ~5 GB, spills onto the CPU, and turns generation from seconds into minutes. Why 4B and what would overturn
+it: [llm/architecture.md](llm/architecture.md).
+
+**Verify it is actually on the GPU** after pulling, and after any change to the context budget:
+
+```bash
+ollama run qwen3:4b "hi"
+ollama ps        # must report 100% GPU — any CPU share means it no longer fits
+```
 
 The app also runs with **no model at all**: generation is stubbed and everything else — adding skills, storage, the
 job queue — works normally. That is deliberate, because generation is split from consumption.
@@ -37,9 +44,7 @@ cd skill_interview.exe
 npm install
 
 # LLM runtime — optional for most development work
-ollama pull qwen3:4b     # day-to-day
-ollama pull gemma3:4b    # second family, for prompt-variance checks
-ollama pull qwen3:8b     # quality evals only
+ollama pull qwen3:4b     # the only model; dev and production are the same
 ollama serve             # usually already running as a service
 ```
 
