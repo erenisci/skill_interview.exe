@@ -64,6 +64,9 @@ Run on a **clean Windows VM**, against the packaged installer, not a dev build.
 
 ## Performance and resources
 
+- [ ] **The model runs fully on the GPU.** During generation, `ollama ps` reports `100% GPU`. Any CPU share means
+      the weights plus KV cache no longer fit and generation has silently become minutes-long — check `num_ctx` and
+      the truncation budget ([../operations/performance.md](../operations/performance.md)).
 - [ ] Cold start to the daily set is under 3 seconds.
 - [ ] During daily use, memory stays at the app baseline — the model is not resident.
 - [ ] After generation completes, memory returns to baseline; the model is released.

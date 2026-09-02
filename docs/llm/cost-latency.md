@@ -26,7 +26,12 @@ battery** — and the design spends them all in one place, on purpose.
 Retrieved text is truncated rather than summarized by an extra model call: a summarization pass would double the
 generation time and add a place for facts to be lost before the writer ever sees them.
 
-Concrete token limits are TBD until measured on a real 8B model — guessing them would put a fabricated number in a
+**The token budget is bounded by VRAM, not only by prompt length.** The KV cache grows with `num_ctx`, and on a 4 GB
+GPU holding a ~2.5 GB model there is little slack: raising the context to fit more source text is exactly what pushes
+layers onto the CPU and turns generation from seconds into minutes, silently. Truncation and `num_ctx` are tuned
+together — see [../operations/performance.md](../operations/performance.md).
+
+Concrete token limits are TBD until measured on the target GPU — guessing them would put a fabricated number in a
 doc that later reads as fact.
 
 ## Caching
