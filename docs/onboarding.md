@@ -1,0 +1,98 @@
+---
+title: Onboarding
+discipline: knowledge
+status: active
+updated: 2026-09-02
+---
+
+# Onboarding
+
+> **Purpose.** Get from a clean Windows machine to a running dev build.
+> **Related.** [project-structure.md](engineering/project-structure.md) · [maintenance.md](maintenance.md)
+
+## Prerequisites
+
+| Requirement | Version                    | Note                                                      |
+| ----------- | -------------------------- | --------------------------------------------------------- |
+| Windows     | 10/11                      | Only supported platform                                   |
+| Node.js     | LTS                        | Runs Electron main process and build tooling              |
+| npm         | bundled                    | Package manager                                           |
+| Ollama      | current                    | Must be installed and running on `http://localhost:11434` |
+| Model       | `qwen3:4b` for development | ~2.5 GB, Q4 quantized — fits a 4 GB GPU entirely          |
+| Disk        | ~10 GB free                | Model + node_modules + build output                       |
+
+**Which model.** Development and quality measurement want different models. A 4B model is enough to exercise the
+pipeline and loads fast; quality is judged on the 8B class, which spills to CPU on a 4 GB card and is slow but
+acceptable as a batch job. Whether 8B is the right _recommended_ model for users is an open question —
+see [llm/architecture.md](llm/architecture.md).
+
+The app also runs with **no model at all**: generation is stubbed and everything else — adding skills, storage, the
+job queue — works normally. That is deliberate, because generation is split from consumption.
+
+## Setup
+
+```bash
+git clone <repo-url>
+cd skill_interview.exe
+npm install
+
+# LLM runtime — optional for most development work
+ollama pull qwen3:4b     # day-to-day
+ollama pull gemma3:4b    # second family, for prompt-variance checks
+ollama pull qwen3:8b     # quality evals only
+ollama serve             # usually already running as a service
+```
+
+`npm install` may report that install scripts need approval (npm 11+). `esbuild` and `better-sqlite3` both need
+theirs to build: `npm install-scripts approve esbuild better-sqlite3`.
+
+No `.env` is required to run: search defaults to the GitHub API and Wikipedia, neither of which needs a key.
+Optional keys are entered in the app's settings UI, never in a file. See [operations/env-vars.md](operations/env-vars.md).
+
+## First Run
+
+```bash
+npm run dev
+```
+
+1. The app checks for Ollama; if it is missing or has no model you get the setup screen, which also offers
+   "Continue without a model".
+2. Add a skill (`nginx`). It is stored with status `pending` — research arrives in M-2.
+3. Add a second, related one (`Traefik`), and an unrelated one (`PostgreSQL`), ready for the relation work in M-3.
+
+Later milestones add to this: the job queue panel and the daily set do not exist yet.
+
+## Where Things Live
+
+| Area                                 | Path                        | Exists yet |
+| ------------------------------------ | --------------------------- | ---------- |
+| Electron main process                | `src/main/`                 | yes        |
+| React UI                             | `src/renderer/`             | yes        |
+| Preload / `contextBridge` surface    | `src/preload/`              | yes        |
+| Types shared across the IPC boundary | `src/shared/`               | yes        |
+| IPC handlers                         | `src/main/ipc/`             | yes        |
+| Migrations                           | `src/main/db/migrations/`   | yes        |
+| Repositories (all SQL lives here)    | `src/main/db/repositories/` | yes        |
+| LLM adapters                         | `src/main/llm/`             | yes        |
+| Startup readiness check              | `src/main/startup/`         | yes        |
+| Prompt templates                     | `src/main/llm/prompts/`     | M-2        |
+| Search adapters                      | `src/main/search/`          | M-2        |
+| Job queue loop                       | `src/main/queue/`           | M-2        |
+| Pipeline stages                      | `src/main/pipeline/`        | M-2        |
+| Scheduler                            | `src/main/scheduler/`       | M-5        |
+| Evaluation sets and runner           | `evals/`                    | M-7        |
+| Docs                                 | `docs/`                     | yes        |
+
+## Common Tasks
+
+| Task                      | Command                                      |
+| ------------------------- | -------------------------------------------- |
+| Dev build with hot reload | `npm run dev`                                |
+| Type check                | `npm run typecheck`                          |
+| Lint                      | `npm run lint`                               |
+| Format                    | `npm run format`                             |
+| Unit tests                | `npm test`                                   |
+| Production build          | `npm run build`                              |
+| Windows installer         | `npm run package`                            |
+| LLM eval suite            | `npm run eval` — M-7, not wired yet          |
+| Reset local database      | delete `%APPDATA%/skill-interview/skills.db` |

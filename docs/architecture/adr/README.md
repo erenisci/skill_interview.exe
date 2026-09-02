@@ -1,0 +1,31 @@
+# Architecture Decision Records
+
+Significant technical decisions, one file each. An ADR records _why_, _what else was considered_, _why not those_,
+and _what it costs_ — so a decision can be revisited on its reasoning rather than re-argued from scratch.
+
+ADRs are **immutable except for their Status**. To change a decision, write a new ADR that supersedes the old one.
+
+## Index
+
+| ADR                                  | Title                                                                                        | Status   | Date       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- | -------- | ---------- |
+| [0001](0001-initial-architecture.md) | Initial architecture — Electron + TypeScript, local-first, generation split from consumption | Accepted | 2026-09-02 |
+| [0002](0002-constrained-decoding.md) | Constrained decoding for structured output — JSON Schema at the runtime, plus a parse        | Accepted | 2026-09-02 |
+| [0003](0003-source-resolution.md)    | Source resolution — a search result is a candidate, never a source                           | Accepted | 2026-09-02 |
+
+## When to write one
+
+Write an ADR when a choice would be expensive to reverse or would confuse someone reading the code later:
+
+- Choosing or replacing a framework, database, or external dependency
+- Changing where a boundary sits (what the renderer may do, what an adapter hides)
+- Committing to an algorithm the product depends on (scheduling, distractor assembly)
+- Accepting a significant trade-off, especially one that costs performance or quality
+
+Not every decision needs one. Routine choices go in [../../engineering/coding-standards.md](../../engineering/coding-standards.md);
+knowingly accepted compromises go in [../../project/tech-debt.md](../../project/tech-debt.md).
+
+## Format
+
+Copy the shape of ADR-0001: Status · Context · Decision · Consequences. Number sequentially, four digits,
+kebab-case title. Update the index table above when adding one.
