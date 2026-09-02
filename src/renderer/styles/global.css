@@ -62,10 +62,27 @@ select {
   color: var(--text);
 }
 
-/* The native dropdown arrow is drawn inside the padding box, so the shared 11px
-   leaves the label touching it. Give the arrow its own room. */
+/* The native arrow is anchored to the element's right edge by the browser, so no amount
+   of padding moves it off the border. Turn the native appearance off and draw our own,
+   which lets the arrow sit inset from the edge like the label is. */
 select {
-  padding-right: 30px;
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%239598aa' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M1 1.5 6 6.5 11 1.5'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 11px 7px;
+}
+
+select:hover {
+  border-color: var(--accent);
+}
+
+/* The popup list is drawn by the OS and defaults to light, which is jarring against
+   the rest of the app. */
+select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 input:focus-visible,
