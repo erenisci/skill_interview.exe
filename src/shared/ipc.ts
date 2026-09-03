@@ -4,7 +4,16 @@
  * Every handler returns a Result so the renderer must handle failure to type-check.
  */
 
-import type { Card, ContentLanguage, Skill, Source, SystemStatus } from './domain';
+import type {
+  Card,
+  ContentLanguage,
+  FeedbackReason,
+  FeedbackTarget,
+  Question,
+  Skill,
+  Source,
+  SystemStatus,
+} from './domain';
 import type { Result } from './result';
 
 export const CHANNELS = {
@@ -14,6 +23,8 @@ export const CHANNELS = {
   skillsRemove: 'skills:remove',
   cardsForSkill: 'cards:for-skill',
   skillsRelated: 'skills:related',
+  questionsForSkill: 'questions:for-skill',
+  questionsFlag: 'questions:flag',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 } as const;
@@ -43,6 +54,17 @@ export interface CardWithSources {
   readonly sources: readonly Source[];
 }
 
+/**
+ * A flag always carries why. A bare thumbs-down cannot be acted on: two correct options
+ * and a rambling explanation are different defects with different fixes (ADR-0004).
+ */
+export interface FlagQuestionRequest {
+  readonly questionId: number;
+  readonly target: FeedbackTarget;
+  readonly reason: FeedbackReason;
+  readonly note?: string;
+}
+
 /** Request and response shape per channel. Both sides derive their types from this map. */
 export interface IpcContract {
   [CHANNELS.systemStatus]: { request: void; response: Result<SystemStatus> };
@@ -51,6 +73,8 @@ export interface IpcContract {
   [CHANNELS.skillsRemove]: { request: number; response: Result<void> };
   [CHANNELS.cardsForSkill]: { request: number; response: Result<readonly CardWithSources[]> };
   [CHANNELS.skillsRelated]: { request: number; response: Result<readonly RelatedSkill[]> };
+  [CHANNELS.questionsForSkill]: { request: number; response: Result<readonly Question[]> };
+  [CHANNELS.questionsFlag]: { request: FlagQuestionRequest; response: Result<void> };
   [CHANNELS.settingsGet]: { request: string; response: Result<string | null> };
   [CHANNELS.settingsSet]: { request: SettingsSetRequest; response: Result<void> };
 }

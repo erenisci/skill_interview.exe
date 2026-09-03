@@ -1,3 +1,9 @@
+import {
+  EXPLANATION_REASONS,
+  QUESTION_REASONS,
+  type FeedbackReason,
+  type FeedbackTarget,
+} from '@shared/domain';
 import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shared/ipc';
 import { appError, err, ok } from '@shared/result';
 import { ipcMain } from 'electron';
@@ -29,6 +35,12 @@ function handle<C extends Channel>(channel: C, ctx: AppContext, fn: Handler<C>):
     }
   });
 }
+
+/** Which reasons belong to which target — the pairing SQLite's CHECK cannot express. */
+const EXPECTED_REASONS: Readonly<Record<FeedbackTarget, readonly FeedbackReason[]>> = {
+  question: QUESTION_REASONS,
+  explanation: EXPLANATION_REASONS,
+};
 
 export function registerIpc(ctx: AppContext, appVersion: string): void {
   handle(CHANNELS.systemStatus, ctx, async () =>
@@ -100,6 +112,45 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
       return err(appError('validation', 'unknown-skill', `no skill with id ${id}`));
     }
     log.info('ipc', 'skill removed', { skillId: id });
+    return ok(undefined);
+  });
+
+  handle(CHANNELS.questionsForSkill, ctx, (skillId) => ok(ctx.questions.listBySkill(skillId)));
+
+  handle(CHANNELS.questionsFlag, ctx, (request) => {
+    // The renderer sends a union member, but IPC input is untrusted regardless of what
+    // the type says — a value outside the enum would otherwise reach a CHECK constraint
+    // as a thrown exception instead of a handled result.
+    if (!EXPECTED_REASONS[request.target]?.includes(request.reason)) {
+      return err(
+        appError(
+          'validation',
+          'bad-reason',
+          `"${request.reason}" is not a reason for a ${request.target} flag`,
+        ),
+      );
+    }
+
+    const recorded = ctx.questions.flag({
+      questionId: request.questionId,
+      target: request.target,
+      reason: request.reason,
+      note: request.note?.trim() || null,
+      createdAt: new Date().toISOString(),
+    });
+    if (!recorded) {
+      return err(
+        appError('validation', 'unknown-question', `no question with id ${request.questionId}`),
+      );
+    }
+
+    // The reason is the signal, so it is logged; the note is the user's own words and is
+    // not (docs/operations/logging.md).
+    log.info('ipc', 'question flagged', {
+      questionId: request.questionId,
+      target: request.target,
+      reason: request.reason,
+    });
     return ok(undefined);
   });
 

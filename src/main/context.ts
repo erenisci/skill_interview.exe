@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { openDatabase, type Db } from './db';
 import { CardsRepository } from './db/repositories/cards';
 import { JobsRepository } from './db/repositories/jobs';
+import { QuestionsRepository } from './db/repositories/questions';
 import { RelationsRepository } from './db/repositories/relations';
 import { SettingsRepository } from './db/repositories/settings';
 import { SkillsRepository } from './db/repositories/skills';
@@ -10,6 +11,7 @@ import type { LlmAdapter } from './llm/adapter';
 import { OllamaLlmAdapter } from './llm/ollama';
 import { StubLlmAdapter } from './llm/stub';
 import { createCompareHandler } from './pipeline/compare';
+import { createQuestionsHandler } from './pipeline/questions';
 import { createResearchFailureHandler, createResearchHandler } from './pipeline/research';
 import { JobQueue, type JobHandler } from './queue/queue';
 import {
@@ -24,6 +26,7 @@ export interface AppContext {
   readonly db: Db;
   readonly skills: SkillsRepository;
   readonly cards: CardsRepository;
+  readonly questions: QuestionsRepository;
   readonly relations: RelationsRepository;
   readonly settings: SettingsRepository;
   readonly jobs: JobsRepository;
@@ -43,6 +46,7 @@ export function createContext(userDataDir: string): AppContext {
   const jobs = new JobsRepository(db);
   const skills = new SkillsRepository(db);
   const cards = new CardsRepository(db);
+  const questions = new QuestionsRepository(db);
   const relations = new RelationsRepository(db);
 
   const reset = jobs.resetStale(new Date().toISOString());
@@ -55,6 +59,10 @@ export function createContext(userDataDir: string): AppContext {
   const handlers = new Map<JobKind, JobHandler>([
     ['research', createResearchHandler({ skills, cards, relations, jobs, search, llm })],
     ['compare', createCompareHandler({ skills, cards, llm })],
+    [
+      'generate-questions',
+      createQuestionsHandler({ skills, cards, questions, relations, jobs, llm }),
+    ],
   ]);
 
   const queue = new JobQueue({
@@ -66,7 +74,7 @@ export function createContext(userDataDir: string): AppContext {
     },
   });
 
-  return { db, settings, jobs, skills, cards, relations, llm, search, queue };
+  return { db, settings, jobs, skills, cards, questions, relations, llm, search, queue };
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { ContentLanguage, Skill, SystemStatus } from '@shared/domain';
 import { CHANNELS, type CardWithSources, type RelatedSkill } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
+import { QuestionList } from './QuestionList';
 
 interface Props {
   readonly status: SystemStatus;
@@ -180,6 +181,9 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
                         </article>
                       ))
                     )}
+
+                    <h3>Questions</h3>
+                    <QuestionList skillId={skill.id} />
                   </div>
                 )}
               </li>
