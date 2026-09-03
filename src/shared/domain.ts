@@ -73,6 +73,62 @@ export interface Question {
   readonly options: readonly QuestionOption[];
 }
 
+/**
+ * One atomic statement about a skill, written from that skill's card.
+ *
+ * Claims are what questions are built out of: the correct option is a claim about the
+ * skill being asked about, and the distractors are claims belonging to its neighbours.
+ * A claim never names its own technology — that would give the answer away.
+ */
+export interface Claim {
+  readonly id: number;
+  readonly skillId: number;
+  readonly cardId: number;
+  readonly text: string;
+  readonly model: string;
+  readonly promptVersion: string;
+  readonly createdAt: string;
+}
+
+/** A flag is about the question or about its explanation — different defects. */
+export type FeedbackTarget = 'question' | 'explanation';
+
+/**
+ * Why the user rejected it. Coarse "bad" is unusable: these route to different fixes —
+ * `ambiguous` and `implausible-distractors` are code problems, the rest are prompt or
+ * grounding problems (ADR-0004).
+ */
+export type FeedbackReason =
+  | 'ambiguous'
+  | 'implausible-distractors'
+  | 'wrong-answer'
+  | 'too-easy'
+  | 'off-topic'
+  | 'explanation-wrong'
+  | 'explanation-unclear';
+
+export const QUESTION_REASONS: readonly FeedbackReason[] = [
+  'ambiguous',
+  'implausible-distractors',
+  'wrong-answer',
+  'too-easy',
+  'off-topic',
+];
+
+export const EXPLANATION_REASONS: readonly FeedbackReason[] = [
+  'explanation-wrong',
+  'explanation-unclear',
+];
+
+export interface QuestionFeedback {
+  readonly id: number;
+  readonly questionId: number;
+  readonly target: FeedbackTarget;
+  readonly reason: FeedbackReason;
+  readonly note: string | null;
+  readonly createdAt: string;
+}
+
 export type JobKind = 'research' | 'compare' | 'generate-questions';
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed';
 
