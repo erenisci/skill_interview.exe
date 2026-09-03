@@ -4,6 +4,7 @@ import { openDatabase, type Db } from './db';
 import { CardsRepository } from './db/repositories/cards';
 import { JobsRepository } from './db/repositories/jobs';
 import { QuestionsRepository } from './db/repositories/questions';
+import { ReviewsRepository } from './db/repositories/reviews';
 import { RelationsRepository } from './db/repositories/relations';
 import { SettingsRepository } from './db/repositories/settings';
 import { SkillsRepository } from './db/repositories/skills';
@@ -27,6 +28,7 @@ export interface AppContext {
   readonly skills: SkillsRepository;
   readonly cards: CardsRepository;
   readonly questions: QuestionsRepository;
+  readonly reviews: ReviewsRepository;
   readonly relations: RelationsRepository;
   readonly settings: SettingsRepository;
   readonly jobs: JobsRepository;
@@ -47,6 +49,7 @@ export function createContext(userDataDir: string): AppContext {
   const skills = new SkillsRepository(db);
   const cards = new CardsRepository(db);
   const questions = new QuestionsRepository(db);
+  const reviews = new ReviewsRepository(db);
   const relations = new RelationsRepository(db);
 
   const reset = jobs.resetStale(new Date().toISOString());
@@ -74,7 +77,7 @@ export function createContext(userDataDir: string): AppContext {
     },
   });
 
-  return { db, settings, jobs, skills, cards, questions, relations, llm, search, queue };
+  return { db, settings, jobs, skills, cards, questions, reviews, relations, llm, search, queue };
 }
 
 /**
