@@ -21,14 +21,18 @@ The first honest end-to-end measurement took **82.8 s** for a two-sentence card.
 GPU** — two settings found by measuring, both now in the adapter and documented in
 [operations/performance.md](operations/performance.md).
 
-**M-2 has started.** The durable job queue is in and covered: it retries transient failures with a backoff that
-survives a restart, refuses to retry a configuration failure, gives up after a limit, resumes work interrupted by a
-crash, and releases the model exactly once per drain. Migration 002 was applied to a copy of the real database before
-being committed. 56 tests, clean typecheck, lint and build.
+**M-2 is under way.** Two of its parts are in and covered by 86 tests:
+
+- The **durable job queue** — retries transient failures with a backoff that survives a restart, refuses to retry a
+  configuration failure, gives up after a limit, resumes work interrupted by a crash, and releases the model exactly
+  once per drain. Migration 002 was applied to a copy of the real database before being committed.
+- The **search adapters** — GitHub (repository plus its declared documentation), Wikipedia, and HTML/Markdown
+  extraction. They return **candidates**, never sources: the text of a candidate is not even fetched until resolution
+  has accepted it.
 
 ## In Progress
 
-- Nothing actively in flight. M-2 is next.
+- M-2. The resolution stage is the next piece, and the one the product's honesty depends on.
 
 ## Done (recent)
 
@@ -45,6 +49,8 @@ being committed. 56 tests, clean typecheck, lint and build.
 | 2026-09-03 | `think: false` and `num_gpu: 99` added to the adapter after measurement — 82.8 s → 0.9 s, 100% GPU            |
 | 2026-09-03 | **M-1 signed off** — all four exit criteria verified against a real `qwen3:4b`                                |
 | 2026-09-03 | M-2: durable job queue with retry, backoff surviving restarts, and model release on drain (21 tests)          |
+| 2026-09-03 | M-2: search adapters (GitHub, docs, Wikipedia) returning candidates, plus HTML/Markdown extraction            |
+| 2026-09-03 | Measured GitHub query strategies — `in:name` from ADR-0003 was wrong; plain relevance scores 7/7 against 6/7  |
 
 ## Blocked
 
@@ -52,10 +58,10 @@ being committed. 56 tests, clean typecheck, lint and build.
 
 ## Next Up
 
-1. M-2 — `SearchAdapter` (GitHub `in:name`, official docs, Wikipedia)
-2. M-2 — the resolution stage: deterministic name gate, then the `resolve-source` model call ([ADR-0003](architecture/adr/0003-source-resolution.md))
-3. M-2 — HTML→text extraction and the truncation budget, tuned together with `num_ctx`
-4. M-2 — the primer-card prompt and the synthesis stage, with sources stored and shown
+1. M-2 — the resolution stage: deterministic name gate, then the `resolve-source` model call ([ADR-0003](architecture/adr/0003-source-resolution.md))
+2. M-2 — the primer-card prompt and the synthesis stage
+3. M-2 — wire it end to end: adding a skill enqueues a research job, the handler runs the pipeline, sources and card are stored and shown
+4. M-2 — settle the truncation budget against real retrieved text, tuned together with `num_ctx`
 5. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
 6. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
 

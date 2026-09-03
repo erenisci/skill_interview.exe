@@ -32,7 +32,7 @@ Two settings were found by measuring rather than assuming, and both are now in t
 ### M-2 — Research and primer cards
 
 **Goal.** Typing a skill produces a card grounded in sources that are **actually about that skill**.
-**Scope.** `SearchAdapter` (GitHub `in:name`, official docs, Wikipedia); the **resolution stage** — deterministic
+**Scope.** `SearchAdapter` (GitHub, official docs, Wikipedia); the **resolution stage** — deterministic
 name gate plus the `resolve-source` model call ([ADR-0003](../architecture/adr/0003-source-resolution.md)); text
 extraction and truncation; durable job queue with retry and model release; primer synthesis prompt; source storage
 and display.

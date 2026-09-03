@@ -6,10 +6,11 @@ These are **not** the eval harness ([../../docs/llm/eval-harness.md](../../docs/
 fixed inputs and produce no scored baseline. They exist so the evidence behind an ADR can be re-run rather than
 taken on trust.
 
-| Script                | Question                                                  | Informed                                                                                              |
-| --------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `coverage-probe.mjs`  | Does each provider return enough text for 20 real skills? | [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — and showed the question was wrong |
-| `precision-probe.mjs` | Is the text about the **right subject**?                  | [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — the decision rests on this        |
+| Script                   | Question                                                           | Informed                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `coverage-probe.mjs`     | Does each provider return enough text for 20 real skills?          | [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — and showed the question was wrong              |
+| `precision-probe.mjs`    | Is the text about the **right subject**?                           | [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — the decision rests on this                     |
+| `github-query-probe.mjs` | Which GitHub query strategy resolves a name to the project itself? | The correction in [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — `in:name` did not survive it |
 
 ```bash
 node evals/probes/coverage-probe.mjs

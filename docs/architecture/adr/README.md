@@ -25,6 +25,20 @@ Write an ADR when a choice would be expensive to reverse or would confuse someon
 Not every decision needs one. Routine choices go in [../../engineering/coding-standards.md](../../engineering/coding-standards.md);
 knowingly accepted compromises go in [../../project/tech-debt.md](../../project/tech-debt.md).
 
+## Corrections versus supersession
+
+The two are different, and mixing them destroys the audit trail either way:
+
+- **A changed decision** gets a **new ADR** that supersedes the old one. The old one keeps its text and gains a
+  `Superseded by` status.
+- **A factual detail that turned out to be wrong** — a measurement, an API behaviour, a claim about a library — gets a
+  dated **Correction** section at the top of the same ADR, with the original text left standing below it. Leaving a
+  known-wrong instruction in an accepted ADR is worse than the small violation of immutability, because someone will
+  implement it.
+
+ADR-0003 carries an example: its decision holds, but one supporting claim about a search parameter did not survive
+being measured.
+
 ## Format
 
 Copy the shape of ADR-0001: Status · Context · Decision · Consequences. Number sequentially, four digits,

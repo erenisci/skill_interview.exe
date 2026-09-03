@@ -112,12 +112,12 @@ question in [../product/prd.md](../product/prd.md).
 
 Retrieval only, no fine-tuning and no persistent vector index in v1.
 
-| Source         | Role                                                                                     |
-| -------------- | ---------------------------------------------------------------------------------------- |
-| GitHub API     | Primary for tools. Searched `in:name`, never by stars. README plus the declared homepage |
-| Official docs  | Fetched from the homepage the repository declares, so no search step can get it wrong    |
-| Wikipedia API  | Secondary, strongest for **concepts** rather than tools — "what is a reverse proxy"      |
-| Tavily / Brave | Optional, user's own key. Better reliability for users who want it                       |
+| Source         | Role                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| GitHub API     | Primary for tools. Default relevance, never `sort=stars`. README plus the declared homepage |
+| Official docs  | Fetched from the homepage the repository declares, so no search step can get it wrong       |
+| Wikipedia API  | Secondary, strongest for **concepts** rather than tools — "what is a reverse proxy"         |
+| Tavily / Brave | Optional, user's own key. Better reliability for users who want it                          |
 
 No API key ships in the repository. DuckDuckGo was removed by [ADR-0003](../architecture/adr/0003-source-resolution.md).
 Detail: [rag-sources.md](rag-sources.md).

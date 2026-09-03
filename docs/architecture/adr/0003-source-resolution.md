@@ -10,6 +10,28 @@ date: 2026-09-02
 ## Status
 
 Accepted — 2026-09-02
+Corrected — 2026-09-03 (see below; the decision stands, one supporting detail was wrong)
+
+## Correction — 2026-09-03
+
+**The `in:name` change below was not supported by measurement, and the code does not do it.**
+The original text is left intact rather than rewritten, because the point of an immutable ADR is that its
+reasoning can be audited — including where it was wrong.
+
+Seven skills, three query strategies, top result each:
+
+| Strategy        | Correct | Notes                                                                                          |
+| --------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `sort=stars`    | **2/7** | The original problem: Redis → a 158k-star interview guide, nginx → an interview-questions repo |
+| Plain relevance | **7/7** | What the code now does                                                                         |
+| `in:name`       | **6/7** | Loses "Express.js" to `VerbalExpressions/JSVerbalExpressions` on a name substring              |
+
+So **dropping `sort=stars` was the whole fix**; narrowing the field with `in:name` was unnecessary and cost a case.
+The reasoning in the Decision section was right about the cause and wrong about the remedy.
+
+Nothing else changes. Ranking remains a heuristic either way, every hit remains a candidate, and the two gates still
+decide — which is precisely why the design does not depend on finding a perfect query. Evidence:
+`evals/probes/github-query-probe.mjs`.
 
 ## Context
 

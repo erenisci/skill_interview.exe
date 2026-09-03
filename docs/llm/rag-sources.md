@@ -14,12 +14,12 @@ updated: 2026-09-02
 
 There is no pre-built corpus. Sources are fetched per skill, at research time, and stored with the card they produced.
 
-| Provider           | Default | Key        | Role and risk                                                                                                                                          |
-| ------------------ | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **GitHub API**     | Yes     | None       | Primary for tools. Searched with `in:name`, never `sort=stars`. README plus the declared homepage. 60 req/h unauthenticated, 5000 with a user token    |
-| **Official docs**  | Yes     | None       | Fetched from the homepage the repository declares — no search step to get it wrong                                                                     |
-| **Wikipedia API**  | Yes     | None       | Secondary, and best for **concepts** rather than tools: "what is a reverse proxy", "what is a JVM". Requires a descriptive User-Agent; 429s under load |
-| **Tavily / Brave** | No      | User's own | Optional upgrade. Entered in settings, stored locally                                                                                                  |
+| Provider           | Default | Key        | Role and risk                                                                                                                                                            |
+| ------------------ | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **GitHub API**     | Yes     | None       | Primary for tools. Default relevance, never `sort=stars` — measured 7/7 against 2/7. README plus the declared homepage. 60 req/h unauthenticated, 5000 with a user token |
+| **Official docs**  | Yes     | None       | Fetched from the homepage the repository declares — no search step to get it wrong                                                                                       |
+| **Wikipedia API**  | Yes     | None       | Secondary, and best for **concepts** rather than tools: "what is a reverse proxy", "what is a JVM". Requires a descriptive User-Agent; 429s under load                   |
+| **Tavily / Brave** | No      | User's own | Optional upgrade. Entered in settings, stored locally                                                                                                                    |
 
 **DuckDuckGo was removed.** It returned only links, which would still need fetching, extraction, and both resolution
 gates; the probes showed no capability the other providers lack, and it was the one provider with no API contract.
