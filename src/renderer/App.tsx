@@ -1,8 +1,11 @@
 import type { SystemStatus } from '@shared/domain';
 import { CHANNELS } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
+import { DailyView } from './views/DailyView';
 import { SetupView } from './views/SetupView';
 import { SkillsView } from './views/SkillsView';
+
+type Tab = 'today' | 'skills';
 
 type Load =
   | { state: 'loading' }
@@ -12,6 +15,7 @@ type Load =
 export function App(): React.JSX.Element {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [bypassSetup, setBypassSetup] = useState(false);
+  const [tab, setTab] = useState<Tab>('today');
 
   const refresh = useCallback(async (cancelled?: () => boolean) => {
     const result = await window.api.invoke(CHANNELS.systemStatus, undefined);
@@ -63,5 +67,21 @@ export function App(): React.JSX.Element {
     );
   }
 
-  return <SkillsView status={load.status} onOpenSetup={() => setBypassSetup(false)} />;
+  return (
+    <div className="app">
+      <div className="row" style={{ marginBottom: 24 }}>
+        <button className={tab === 'today' ? 'primary' : ''} onClick={() => setTab('today')}>
+          Today
+        </button>
+        <button className={tab === 'skills' ? 'primary' : ''} onClick={() => setTab('skills')}>
+          Skills
+        </button>
+      </div>
+      {tab === 'today' ? (
+        <DailyView />
+      ) : (
+        <SkillsView status={load.status} onOpenSetup={() => setBypassSetup(false)} />
+      )}
+    </div>
+  );
 }

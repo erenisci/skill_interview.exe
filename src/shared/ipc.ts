@@ -5,6 +5,7 @@
  */
 
 import type {
+  AnswerRating,
   Card,
   ContentLanguage,
   FeedbackReason,
@@ -25,6 +26,8 @@ export const CHANNELS = {
   skillsRelated: 'skills:related',
   questionsForSkill: 'questions:for-skill',
   questionsFlag: 'questions:flag',
+  dailyGet: 'daily:get',
+  dailyAnswer: 'daily:answer',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 } as const;
@@ -65,6 +68,41 @@ export interface FlagQuestionRequest {
   readonly note?: string;
 }
 
+/**
+ * One slot in today's set, already hydrated — the renderer never fetches a card or
+ * question separately for an item it already has here.
+ *
+ * A question already flagged by the time the set is read is left out entirely rather than
+ * included and disabled: membership (which ids belong to today) is frozen at assembly, but
+ * content is not, and a flagged question must not be answerable a second time
+ * (docs/architecture/database-design.md).
+ */
+export type DailySetEntry =
+  | {
+      readonly kind: 'card';
+      readonly position: number;
+      readonly completed: boolean;
+      readonly card: CardWithSources;
+    }
+  | {
+      readonly kind: 'question';
+      readonly position: number;
+      readonly completed: boolean;
+      readonly question: Question;
+    };
+
+export interface DailySet {
+  /** Local `YYYY-MM-DD` — the day this set was assembled for. */
+  readonly date: string;
+  readonly items: readonly DailySetEntry[];
+}
+
+export interface AnswerRequest {
+  readonly itemType: 'card' | 'question';
+  readonly itemId: number;
+  readonly rating: AnswerRating;
+}
+
 /** Request and response shape per channel. Both sides derive their types from this map. */
 export interface IpcContract {
   [CHANNELS.systemStatus]: { request: void; response: Result<SystemStatus> };
@@ -75,6 +113,8 @@ export interface IpcContract {
   [CHANNELS.skillsRelated]: { request: number; response: Result<readonly RelatedSkill[]> };
   [CHANNELS.questionsForSkill]: { request: number; response: Result<readonly Question[]> };
   [CHANNELS.questionsFlag]: { request: FlagQuestionRequest; response: Result<void> };
+  [CHANNELS.dailyGet]: { request: void; response: Result<DailySet> };
+  [CHANNELS.dailyAnswer]: { request: AnswerRequest; response: Result<void> };
   [CHANNELS.settingsGet]: { request: string; response: Result<string | null> };
   [CHANNELS.settingsSet]: { request: SettingsSetRequest; response: Result<void> };
 }

@@ -133,6 +133,14 @@ export interface QuestionFeedback {
   readonly createdAt: string;
 }
 
+/**
+ * What the daily set collects after a card or question. Two values, not FSRS's usual
+ * four, because neither signal this product has is finer than that: a question's answer
+ * is either the correct option or it is not, and a card carries no correctness at all —
+ * only "seen it" ([ADR-0007](../architecture/adr/0007-fsrs-scheduler.md)).
+ */
+export type AnswerRating = 'again' | 'good';
+
 export type JobKind = 'research' | 'compare' | 'generate-questions';
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed';
 

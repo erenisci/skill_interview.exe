@@ -86,7 +86,7 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="app">
+    <div>
       <h1>Skills</h1>
       <p className="subtitle">
         The technologies on your CV. Each one gets researched, then turned into cards and questions.

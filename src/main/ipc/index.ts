@@ -10,6 +10,7 @@ import { ipcMain } from 'electron';
 import type { AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
 import { RelationsRepository } from '../db/repositories/relations';
+import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
 import { checkLlmReadiness } from '../startup/readiness';
 import { log } from '../util/logger';
 import { normalizeSkillName, toSlug } from '../util/slug';
@@ -152,6 +153,22 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
       reason: request.reason,
     });
     return ok(undefined);
+  });
+
+  handle(CHANNELS.dailyGet, ctx, () => getTodaysSet(ctx));
+
+  handle(CHANNELS.dailyAnswer, ctx, (request) => {
+    // Untrusted input regardless of what the type claims — an out-of-range value must
+    // reach a handled result, not a downstream throw.
+    if (request.itemType !== 'card' && request.itemType !== 'question') {
+      return err(
+        appError('validation', 'bad-item-type', `"${request.itemType}" is not an item type`),
+      );
+    }
+    if (request.rating !== 'again' && request.rating !== 'good') {
+      return err(appError('validation', 'bad-rating', `"${request.rating}" is not a rating`));
+    }
+    return recordAnswer(ctx, request.itemType, request.itemId, request.rating);
   });
 
   handle(CHANNELS.settingsGet, ctx, (key) => ok(ctx.settings.get(key)));
