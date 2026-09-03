@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.base.json",
   "include": [
     "electron.vite.config.ts",
     "vitest.config.ts",
@@ -8,6 +8,8 @@
     "src/shared/**/*"
   ],
   "compilerOptions": {
+    "composite": true,
+
     "types": ["node", "vite/client"],
     "lib": ["ESNext"]
   }

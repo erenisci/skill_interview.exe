@@ -53,6 +53,10 @@ skill_interview.exe/
 ├── docs/
 ├── resources/                 # (M-8) icons, installer assets
 ├── electron.vite.config.ts
+├── tsconfig.base.json     # shared compiler options
+├── tsconfig.node.json     # main + preload + shared
+├── tsconfig.web.json      # renderer
+├── tsconfig.json          # solution file: references only, so editors route correctly
 └── package.json
 ```
 
