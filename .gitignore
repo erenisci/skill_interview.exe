@@ -38,6 +38,13 @@ Desktop.ini
 docs/business/
 docs/legal/
 
+# The filled-in brief: written in the author's own language for an audience of one, and
+# full of raw personal reasoning. The decisions it led to live in the ADRs instead.
+docs/_brief-archive/
+
+# Acta's own state — a generated registry table, not a document anyone reads.
+.claude/
+
 # docs/product/
 # docs/project/
 # docs/engineering/

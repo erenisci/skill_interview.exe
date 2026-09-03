@@ -71,15 +71,14 @@ Rules that hold regardless of measured numbers:
 
 Budgets are set against real hardware rather than an imagined average. Measured, not assumed:
 
-|      |                                        |
-| ---- | -------------------------------------- |
-| GPU  | RTX 3050 Ti Laptop — **4096 MiB** VRAM |
-| RAM  | 15.8 GB                                |
-| CPU  | i5-11400H, 6C/12T                      |
-| Disk | 585 GB free                            |
+|     |                                        |
+| --- | -------------------------------------- |
+| GPU | RTX 3050 Ti Laptop — **4096 MiB** VRAM |
+| RAM | 16 GB                                  |
+| CPU | i5-11400H, 6C/12T                      |
 
-This is a common mid-range configuration, which is why it is treated as the target rather than as one developer's
-limitation. **VRAM is the only binding constraint here** — disk and system RAM have ample headroom, so any argument
+This is a common mid-range configuration, which is why it is treated as the target rather than as one machine's
+limitation. **VRAM is the only binding constraint here** — system RAM and disk have ample headroom, so any argument
 that appeals to them is wrong.
 
 The 4096 MiB is what rules out an 8B model: ~4.7–4.9 GB of Q4 weights before a single byte of KV cache.
