@@ -137,16 +137,39 @@ lost.
 must-pass and must-fail pairs. Tuning these by hand until the output looks good is the mistake ADR-0003's correction
 already records.
 
-### TD-12 — The discrimination gate's drop rate is unmeasured
+### TD-12 — The discrimination gate rejects almost every distractor
 
-**What.** Every borrowed claim must be judged clearly false of the target skill before it may be a distractor, and
-the prompt deliberately rejects on uncertainty. How often that discards a usable claim is unknown.
-**Why it exists.** The asymmetry is intentional — a lost distractor costs one option, an ambiguous one costs the
-reader's trust — but "correctly strict" and "so strict that nothing survives" produce the same visible outcome: no
-questions.
-**Cost.** On a small skill graph the gate could starve question generation entirely, and the app would look like it
-simply has not finished working rather than like it rejected everything.
-**Contained by.** `too-few-distractors` is logged per dropped candidate, so the starvation case is at least
-diagnosable after the fact.
-**Remediation.** Measure the survival rate on a real skill list in M-7 before touching the prompt. If it is too low,
-the fix is more likely to be a larger pool — more neighbours — than a laxer gate.
+**What.** Measured 2026-09-03 with `evals/probes/question-probe.mjs` against `qwen3:4b`, on nginx, HAProxy and
+Apache HTTP Server: **1 of 28 borrowed claims survived the gate (4%)**. Three are needed per question, so no
+question could be assembled for any of the three skills. This was logged as a risk before it was measured; the
+measurement turned it into a blocker.
+**Why it exists.** The gate rejects only when the material **explicitly contradicts** the claim. Probed on
+unambiguous cases it correctly kept "uses the process name httpd" and "is released under the Apache License 2.0" —
+in both the nginx material states the opposite. Where the material is merely silent it answers "could be true",
+in its own words because "the material does not indicate that it does not have this capability". Material about one
+technology is silent about nearly everything another technology does, so the tie-breaker in
+`discriminate-claim.v1.md` — "if the material does not settle it, answer `true`" — rejects nearly everything. The
+safe default was the fatal one.
+**Cost.** Question generation produces nothing for skills whose neighbours are similar, which is precisely the case
+the product is built around. The app has cards and no questions.
+**Contained by.** Nothing. This is a blocker, not an accepted compromise, and it is recorded here only until the
+successor ADR replaces the mechanism.
+**Remediation.** Not a threshold to nudge — asking "could this be true of X?" against material about X lets the
+model reason only from absence. The candidate fix is to move discrimination into generation, where the model sees
+both technologies at once and is already known to do well (the comparison card proves it). Recorded as a correction
+on [ADR-0004](../architecture/adr/0004-claim-based-questions.md); the replacement needs its own ADR.
+
+### TD-13 — Claims come back generic instead of distinguishing
+
+**What.** In the same run, asked for claims about HAProxy the model returned properties true of the whole category:
+"supports HTTP/2 and HTTP/3", "event-driven multithreaded architecture", "SSL/TLS termination", "load balancing".
+`question-claims.v1.md` asks for what is distinctive and says generic properties make worthless options.
+**Why it exists.** A skill is described on its own, with no neighbour in view, so the model has nothing to contrast
+against and falls back on what the category shares. Apache's claims were specific by comparison — but specific in
+the wrong way (market share, the NCSA lineage, the licence), which is trivia rather than understanding.
+**Cost.** A generic claim is correctly rejected by the gate, so it wastes a model call; used as the _correct_ option
+it makes a question that teaches nothing.
+**Contained by.** Nothing yet.
+**Remediation.** Shares a root cause with [TD-12](#td-12--the-discrimination-gate-rejects-almost-every-distractor):
+both come from judging one technology in isolation. A fix that generates claims per pair would address both, and
+should be measured before it is believed.

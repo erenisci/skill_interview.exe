@@ -28,3 +28,16 @@ rather than rate limiting. Read the output with that in mind.
 **The lesson worth keeping:** the coverage probe reported 90% and was measuring the wrong thing. Zustand's
 "usable" 8,887 characters were the Wikipedia article on Pompeii. A measurement that does not check what it is
 counting is worse than no measurement, because it is believed.
+
+## `question-probe.mjs`
+
+Runs the M-4 chain against a real model on three reverse proxies — nginx, HAProxy and Apache HTTP Server — chosen
+because near-identical tools are the hardest case for the discrimination gate. Fetches each article, writes a primer,
+extracts claims, then offers every neighbour's claim to the gate and reports the survival rate.
+
+`GATE_MATERIAL=source` judges against the full article instead of the primer, which is how the "the gate has too
+little material" hypothesis was tested and discarded.
+
+**First result, 2026-09-03 against `qwen3:4b`: 1 of 28 survived (4%), and no question could be assembled.** See
+[TD-12](../../docs/project/tech-debt.md) and the correction on
+[ADR-0004](../../docs/architecture/adr/0004-claim-based-questions.md).

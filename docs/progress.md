@@ -60,10 +60,24 @@ now skips any claim already asked about, including one whose question the user f
 
 ## In Progress
 
-- **M-4 needs a live run.** Everything is covered by tests against a stub adapter, which proves the assembly and the
-  flag path but says nothing about whether the questions are any good. The parts only a real model can settle: how
-  often the discrimination gate discards usable distractors, and whether `qwen3:4b` writes claims specific enough to
-  make an option worth reading.
+- **M-4 was run against the real model and does not work.** The live run answered both open questions at once, and
+  answered them badly: **1 of 28 borrowed claims survived the discrimination gate (4%)**, where three are needed per
+  question. No question could be assembled for nginx, HAProxy or Apache. `evals/probes/question-probe.mjs`.
+
+  The obvious hypothesis was tested and is wrong — giving the gate the full source article instead of the primer
+  changed nothing (3%). Probing unambiguous cases found the real cause: the gate rejects a claim only when the
+  material **explicitly contradicts** it. Where the material is silent it answers "could be true", and material
+  about one technology is silent about nearly everything another technology does. The tie-breaker in
+  `discriminate-claim.v1.md` — written to protect against the two-correct-options failure — rejects almost
+  everything instead ([TD-12](project/tech-debt.md)).
+
+  A second problem surfaced in the same run: claims come back generic rather than distinguishing
+  ([TD-13](project/tech-debt.md)). Both share a root cause — each technology is judged on its own, with no
+  neighbour in view.
+
+  **The assembly, validation and flag path are sound and stay.** What has to change is the mechanism that decides
+  which claim may be borrowed, and that needs a successor ADR rather than a nudged threshold. Recorded as a dated
+  correction on [ADR-0004](architecture/adr/0004-claim-based-questions.md).
 
 ## Done (recent)
 
@@ -88,11 +102,13 @@ now skips any claim already asked about, including one whose question the user f
 
 ## Blocked
 
-- Nothing.
+- **M-4 cannot ship as built.** The discrimination gate leaves too few distractors to assemble any question
+  ([TD-12](project/tech-debt.md)). The mechanism needs replacing, not tuning, and the replacement needs an ADR.
 
 ## Next Up
 
-1. Run M-4 against a real model and sign it off — the drop rate at the discrimination gate is the number to watch
+1. Decide how borrowing is gated, and write the successor ADR. The measurement points at generating claims per pair,
+   where the model sees both technologies at once — the situation the comparison card already proves it handles
 2. Settle the truncation budget and `num_ctx` against real retrieved text; both are still provisional
 3. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
 4. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
@@ -109,10 +125,11 @@ now skips any claim already asked about, including one whose question the user f
   [TD-04](project/tech-debt.md) stays open longer than planned. Accepted for v1.
 - Whether constrained decoding costs prose quality. Unmeasured, and in scope for the eval harness.
 - Whether `num_gpu: 99` is safe on GPUs smaller than the reference machine's 4 GB. Configurable, but untested there.
-- **The discrimination gate's drop rate is unknown** ([TD-12](project/tech-debt.md)). It is deliberately conservative — an unclear verdict rejects
-  the claim — which could starve question generation on a small skill graph. Nothing in the design detects the
-  difference between "correctly strict" and "so strict nothing survives"; only a live run will.
-- **`MAX_LENGTH_RATIO` and the claim-count bounds are guesses** ([TD-11](project/tech-debt.md)), like the primer's length bounds before them. They
-  belong to the eval set rather than to another round of hand-tuning ([ADR-0004](architecture/adr/0004-claim-based-questions.md)).
+- ~~Whether the discrimination gate's conservatism starves question generation.~~ **Settled by measurement: it does,
+  at 4% survival** ([TD-12](project/tech-debt.md)). The concern was right and the magnitude was worse than feared.
+  What replaces the gate is the open question now.
+- **`MAX_LENGTH_RATIO` and the claim-count bounds are still guesses** ([TD-11](project/tech-debt.md)), like the
+  primer's length bounds before them — and still unmeasured, because no question survived far enough to exercise
+  them. They belong to the eval set rather than to another round of hand-tuning.
 - **Resolution treats packaging for a technology as the technology** ([TD-10](project/tech-debt.md)). Contained, not
   fixed: the card survives, the skill goes unclassified, nothing false is claimed. Belongs to the eval harness.

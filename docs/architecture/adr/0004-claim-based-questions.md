@@ -9,7 +9,47 @@ date: 2026-09-03
 
 ## Status
 
-Accepted — 2026-09-03
+Accepted — 2026-09-03. **One supporting assumption was measured and did not hold; see the correction below.**
+
+## Correction — 2026-09-03
+
+The decision's structure stands. Its assumption that the discrimination gate would leave enough distractors to build
+a question **does not**, and the shortfall is not marginal.
+
+Measured with `evals/probes/question-probe.mjs` against `qwen3:4b`, on nginx, HAProxy and Apache HTTP Server — three
+tools that do the same job, chosen as the hardest case:
+
+| Target      | Distractors surviving the gate |
+| ----------- | ------------------------------ |
+| nginx       | 1 / 10                         |
+| HAProxy     | 0 / 8                          |
+| Apache      | 0 / 10                         |
+| **Overall** | **1 / 28 (4%)**                |
+
+Three or more are needed. **No question could be assembled at all.**
+
+Two hypotheses were tested, and the obvious one was wrong. Giving the gate the full source article instead of the
+primer changed nothing (3%), so the cause is not that the material is too thin.
+
+The cause is the gate's tie-breaker. Probed on unambiguous cases, it rejects a claim only when the material
+**explicitly contradicts** it — it correctly kept "uses the process name httpd" (the material names `nginx`) and "is
+released under the Apache License 2.0" (the material names BSD-2-Clause). Where the material is merely silent it
+answers "could be true", reasoning in its own words that "the material does not indicate that it does not have this
+capability" and "the statement is not clearly false either". It rejected "stores table rows in a write-ahead log" as
+possibly true of nginx on those grounds.
+
+Material about one technology is silent about nearly everything a different technology does. So the instruction in
+`discriminate-claim.v1.md` — _"If the material does not settle it, answer `true`"_ — written to protect against the
+two-correct-options failure, rejects almost every distractor instead. The safe default was the fatal one.
+
+A second, independent problem shows in the same run: asked for claims about HAProxy, the model returned properties
+generic to the whole category ("supports HTTP/2 and HTTP/3", "event-driven architecture", "SSL/TLS termination").
+Those are genuinely true of nginx, so rejecting them is the gate working correctly. `question-claims.v1.md` asks for
+distinguishing claims and did not get them.
+
+Both belong to a successor ADR rather than to edits here. What the measurement settles is that a gate asking "could
+this be true?" against material about the target puts the burden where a small model cannot carry it: it can only
+ever reason from absence.
 
 ## Context
 
