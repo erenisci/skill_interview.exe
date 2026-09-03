@@ -1,12 +1,16 @@
 import { appError, err, ok, type Result } from '@shared/result';
 import type { Job } from '@shared/domain';
 import type { CardsRepository } from '../db/repositories/cards';
+import type { JobsRepository } from '../db/repositories/jobs';
+import type { RelationsRepository } from '../db/repositories/relations';
 import type { SkillsRepository } from '../db/repositories/skills';
 import type { LlmAdapter } from '../llm/adapter';
 import type { JobHandler } from '../queue/queue';
 import type { SearchAdapter } from '../search/adapter';
 import { truncate } from '../search/extract';
 import { log } from '../util/logger';
+import { classifySkill } from './classify';
+import { earnsComparison, relationsFor, type Relation } from './relate';
 import { resolveSource } from './resolve';
 import { synthesizePrimer } from './synthesize';
 
@@ -23,6 +27,8 @@ import { synthesizePrimer } from './synthesize';
 export interface ResearchDeps {
   readonly skills: SkillsRepository;
   readonly cards: CardsRepository;
+  readonly relations: RelationsRepository;
+  readonly jobs: JobsRepository;
   readonly search: SearchAdapter;
   readonly llm: LlmAdapter;
   /** Bounded by VRAM as much as by the prompt (docs/operations/performance.md). */
@@ -100,10 +106,59 @@ export function createResearchHandler(deps: ResearchDeps): JobHandler {
       ],
     );
 
+    // Classification comes after synthesis on purpose: the model classifies far more
+    // reliably from retrieved text than from a bare name.
+    //
+    // **It is not allowed to fail the job.** The card is the primary output and it is
+    // already written; throwing it away because the model returned one usable tag would
+    // be wildly disproportionate. An unclassified skill simply has no neighbours yet —
+    // a degraded state the user can see, not a lost one
+    // ([system-design.md](../../../docs/architecture/system-design.md)).
+    const classification = await classifySkill(skill.name, excerpt, { llm: deps.llm });
+    let relationCount = 0;
+
+    if (classification.ok) {
+      deps.skills.setClassification(
+        skill.id,
+        classification.value.category,
+        classification.value.tags,
+      );
+
+      const relations = relationsFor(
+        { id: skill.id, category: classification.value.category, tags: classification.value.tags },
+        deps.relations.classifiedSkills(skill.id),
+      );
+      deps.relations.replaceFor(skill.id, relations);
+      enqueueComparisons(deps, relations, fetchedAt);
+      relationCount = relations.length;
+    } else {
+      log.warn('pipeline', 'skill left unclassified, card kept', {
+        skillId: skill.id,
+        code: classification.error.code,
+      });
+    }
+
     deps.skills.setStatus(skill.id, 'ready');
-    log.info('pipeline', 'primer written', { skillId: skill.id, provider: source.provider });
+    log.info('pipeline', 'primer written', {
+      skillId: skill.id,
+      provider: source.provider,
+      classified: classification.ok,
+      relations: relationCount,
+    });
     return ok(undefined);
   };
+}
+
+/**
+ * A weak relation is a neighbour, not a card. Without the strength gate a category with
+ * many members would generate comparisons combinatorially, most of them saying nothing
+ * ([system-design.md](../../../docs/architecture/system-design.md)).
+ */
+function enqueueComparisons(deps: ResearchDeps, relations: readonly Relation[], now: string): void {
+  for (const relation of relations) {
+    if (!earnsComparison(relation)) continue;
+    deps.jobs.enqueue('compare', { skillAId: relation.skillAId, skillBId: relation.skillBId }, now);
+  }
 }
 
 /**

@@ -6,6 +6,7 @@ import type { Job } from '@shared/domain';
 import { migrate } from '../db/migrate';
 import { CardsRepository } from '../db/repositories/cards';
 import { JobsRepository } from '../db/repositories/jobs';
+import { RelationsRepository } from '../db/repositories/relations';
 import { SkillsRepository } from '../db/repositories/skills';
 import { StubLlmAdapter } from '../llm/stub';
 import type { Candidate, SearchAdapter } from '../search/adapter';
@@ -15,6 +16,7 @@ let db: Db;
 let skills: SkillsRepository;
 let cards: CardsRepository;
 let jobs: JobsRepository;
+let relations: RelationsRepository;
 
 const NOW = '2026-09-03T12:00:00.000Z';
 const LONG_BODY = 'nginx is a reverse proxy and load balancer. '.repeat(20);
@@ -36,6 +38,7 @@ beforeEach(() => {
   skills = new SkillsRepository(db);
   cards = new CardsRepository(db);
   jobs = new JobsRepository(db);
+  relations = new RelationsRepository(db);
 });
 
 afterEach(() => db.close());
@@ -53,11 +56,12 @@ function searchStub(overrides: Partial<SearchAdapter> = {}): SearchAdapter {
   };
 }
 
-/** The model is asked twice per research job: resolve the source, then write the primer. */
+/** Three model calls per research job: resolve the source, write the primer, classify. */
 function llmStub(resolveIndex: number | null = 0, body = LONG_BODY) {
   return new StubLlmAdapter([
     { index: resolveIndex, reason: 'it is the project itself' },
     { title: 'nginx', body },
+    { category: 'web-server', tags: ['reverse-proxy', 'load-balancer'], confidence: 'high' },
   ]);
 }
 
@@ -71,6 +75,8 @@ describe('research handler — the happy path', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: llmStub(),
       now: () => new Date(NOW),
@@ -91,6 +97,8 @@ describe('research handler — the happy path', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: llmStub(),
       now: () => new Date(NOW),
@@ -111,6 +119,8 @@ describe('research handler — the happy path', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub({
         findCandidates: async () => {
           statusDuring = skills.findById(skill.id)?.status;
@@ -130,6 +140,8 @@ describe('research handler — refusing rather than degrading', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: llmStub(null),
     });
@@ -145,6 +157,8 @@ describe('research handler — refusing rather than degrading', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub({
         findCandidates: async () => ok([{ ...candidate, identity: 'Pompeii', title: 'Pompeii' }]),
       }),
@@ -162,6 +176,8 @@ describe('research handler — refusing rather than degrading', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: llmStub(0, 'nginx is a proxy.'),
     });
@@ -177,6 +193,8 @@ describe('research handler — refusing rather than degrading', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub({
         findCandidates: async () => err(appError('transient', 'http-429', 'rate limited')),
       }),
@@ -194,6 +212,8 @@ describe('research handler — refusing rather than degrading', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub({
         fetchText: async () => {
           fetched = true;
@@ -217,6 +237,8 @@ describe('research handler — edge cases', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: new StubLlmAdapter(),
     });
@@ -228,6 +250,8 @@ describe('research handler — edge cases', () => {
     const handler = createResearchHandler({
       skills,
       cards,
+      relations,
+      jobs,
       search: searchStub(),
       llm: new StubLlmAdapter(),
     });
@@ -304,5 +328,133 @@ describe('CardsRepository', () => {
     ).toThrow();
     // Neither landed: the card must not survive its sources failing.
     expect(cards.listBySkill(skill.id)).toHaveLength(0);
+  });
+});
+
+describe('research handler — the skill graph', () => {
+  /**
+   * Returns a candidate named after whatever was searched for. The shared stub always
+   * answers "nginx", which the name gate correctly rejects for any other skill — an
+   * earlier version of these tests passed for exactly that wrong reason.
+   */
+  function matchingSearch(): SearchAdapter {
+    return {
+      id: 'stub',
+      findCandidates: async (skill) => ok([{ ...candidate, identity: skill, title: skill }]),
+      fetchText: async () => ok('reverse proxy and load balancer. '.repeat(40)),
+    };
+  }
+
+  /** Counting pending jobs would also count the research jobs the test itself enqueues. */
+  const comparisonJobs = (): number =>
+    (db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'compare'").get() as { n: number }).n;
+
+  function handlerFor(llm = llmStub()) {
+    return createResearchHandler({
+      skills,
+      cards,
+      relations,
+      jobs,
+      search: matchingSearch(),
+      llm,
+      now: () => new Date(NOW),
+    });
+  }
+
+  it('stores the category and tags the graph is built from', async () => {
+    const skill = addSkill();
+    await handlerFor()(jobFor(skill.id));
+
+    const after = skills.findById(skill.id);
+    expect(after?.category).toBe('web-server');
+    expect(after?.tags).toEqual(['reverse-proxy', 'load-balancer']);
+  });
+
+  it('links two skills in the same category and queues their comparison', async () => {
+    const nginx = addSkill('nginx');
+    await handlerFor()(jobFor(nginx.id));
+
+    const traefik = addSkill('Traefik');
+    await handlerFor(
+      new StubLlmAdapter([
+        { index: 0, reason: 'the project itself' },
+        { title: 'Traefik', body: LONG_BODY },
+        { category: 'web-server', tags: ['reverse-proxy', 'load-balancer'], confidence: 'high' },
+      ]),
+    )(jobFor(traefik.id));
+
+    expect(relations.exists(nginx.id, traefik.id)).toBe(true);
+    // Identical tags in the same category: as strong as a relation gets, so it earns a card.
+    expect(comparisonJobs()).toBe(1);
+  });
+
+  it('does not link skills from unrelated categories', async () => {
+    const nginx = addSkill('nginx');
+    await handlerFor()(jobFor(nginx.id));
+
+    const postgres = addSkill('PostgreSQL');
+    await handlerFor(
+      new StubLlmAdapter([
+        { index: 0, reason: 'the project itself' },
+        { title: 'PostgreSQL', body: LONG_BODY },
+        { category: 'database', tags: ['sql', 'relational'], confidence: 'high' },
+      ]),
+    )(jobFor(postgres.id));
+
+    expect(relations.exists(nginx.id, postgres.id)).toBe(false);
+  });
+
+  it('does not spend a comparison on a bare category match', async () => {
+    const nginx = addSkill('nginx');
+    await handlerFor()(jobFor(nginx.id));
+
+    const apache = addSkill('Apache');
+    await handlerFor(
+      new StubLlmAdapter([
+        { index: 0, reason: 'the project itself' },
+        { title: 'Apache', body: LONG_BODY },
+        // Same category, no shared tags — related, but nothing worth comparing.
+        { category: 'web-server', tags: ['static-files', 'cgi'], confidence: 'high' },
+      ]),
+    )(jobFor(apache.id));
+
+    expect(relations.exists(nginx.id, apache.id)).toBe(true);
+    expect(comparisonJobs()).toBe(0);
+  });
+
+  it('keeps the card when classification fails, rather than throwing the work away', async () => {
+    const skill = addSkill();
+    const result = await handlerFor(
+      new StubLlmAdapter([
+        { index: 0, reason: 'the project itself' },
+        { title: 'nginx', body: LONG_BODY },
+        // Tags this generic separate nothing, so classification refuses them.
+        { category: 'web-server', tags: ['software', 'tool'], confidence: 'low' },
+      ]),
+    )(jobFor(skill.id));
+
+    // The card is the primary output and it succeeded. The skill simply has no
+    // neighbours yet — a visible degradation, not a lost job.
+    expect(result.ok).toBe(true);
+    expect(cards.listBySkill(skill.id)).toHaveLength(1);
+    const after = skills.findById(skill.id);
+    expect(after?.status).toBe('ready');
+    expect(after?.category).toBeNull();
+  });
+
+  it('leaves an unclassified skill out of the graph rather than guessing', async () => {
+    const nginx = addSkill('nginx');
+    await handlerFor()(jobFor(nginx.id));
+
+    const mystery = addSkill('Mystery');
+    await handlerFor(
+      new StubLlmAdapter([
+        { index: 0, reason: 'the project itself' },
+        { title: 'Mystery', body: LONG_BODY },
+        { category: 'web-server', tags: ['tool'], confidence: 'low' },
+      ]),
+    )(jobFor(mystery.id));
+
+    expect(relations.exists(nginx.id, mystery.id)).toBe(false);
   });
 });

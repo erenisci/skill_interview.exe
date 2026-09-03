@@ -4,10 +4,12 @@ import { openDatabase, type Db } from './db';
 import { CardsRepository } from './db/repositories/cards';
 import { JobsRepository } from './db/repositories/jobs';
 import { SettingsRepository } from './db/repositories/settings';
+import { RelationsRepository } from './db/repositories/relations';
 import { SkillsRepository } from './db/repositories/skills';
 import { OllamaLlmAdapter } from './llm/ollama';
 import { StubLlmAdapter } from './llm/stub';
 import type { LlmAdapter } from './llm/adapter';
+import { createCompareHandler } from './pipeline/compare';
 import { createResearchFailureHandler, createResearchHandler } from './pipeline/research';
 import { JobQueue, type JobHandler } from './queue/queue';
 import {
@@ -22,6 +24,7 @@ export interface AppContext {
   readonly db: Db;
   readonly skills: SkillsRepository;
   readonly cards: CardsRepository;
+  readonly relations: RelationsRepository;
   readonly settings: SettingsRepository;
   readonly jobs: JobsRepository;
   /** Swapped, never branched on: nothing outside this file knows which one is live. */
@@ -40,6 +43,7 @@ export function createContext(userDataDir: string): AppContext {
   const jobs = new JobsRepository(db);
   const skills = new SkillsRepository(db);
   const cards = new CardsRepository(db);
+  const relations = new RelationsRepository(db);
 
   const reset = jobs.resetStale(new Date().toISOString());
   if (reset > 0)
@@ -49,7 +53,8 @@ export function createContext(userDataDir: string): AppContext {
   const search = createSearchAdapter(settings);
 
   const handlers = new Map<JobKind, JobHandler>([
-    ['research', createResearchHandler({ skills, cards, search, llm })],
+    ['research', createResearchHandler({ skills, cards, relations, jobs, search, llm })],
+    ['compare', createCompareHandler({ skills, cards, llm })],
   ]);
 
   const queue = new JobQueue({
@@ -61,7 +66,7 @@ export function createContext(userDataDir: string): AppContext {
     },
   });
 
-  return { db, settings, jobs, skills, cards, llm, search, queue };
+  return { db, settings, jobs, skills, cards, relations, llm, search, queue };
 }
 
 /**
