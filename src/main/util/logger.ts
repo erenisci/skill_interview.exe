@@ -7,7 +7,8 @@
  */
 
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
-export type LogArea = 'app' | 'db' | 'ipc' | 'queue' | 'pipeline' | 'llm' | 'search' | 'scheduler';
+export type LogArea =
+  'app' | 'db' | 'ipc' | 'queue' | 'pipeline' | 'llm' | 'search' | 'scheduler' | 'notify';
 
 const ORDER: Record<LogLevel, number> = { error: 0, warn: 1, info: 2, debug: 3 };
 

@@ -3,10 +3,13 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createContext, type AppContext } from './context';
 import { registerIpc } from './ipc';
+import { startReminder } from './notify';
 import { resolveDataDir } from './util/data-dir';
 import { log } from './util/logger';
 
 let context: AppContext | null = null;
+let stopReminder: (() => void) | null = null;
+let mainWindow: BrowserWindow | null = null;
 
 /**
  * Set as a header rather than a meta tag so dev and release can differ: Vite's dev server
@@ -60,7 +63,22 @@ function createWindow(): BrowserWindow {
   if (devServer) void window.loadURL(devServer);
   else void window.loadFile(join(__dirname, '../renderer/index.html'));
 
+  mainWindow = window;
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null;
+  });
   return window;
+}
+
+/** Brings the window forward — a reminder notification does nothing useful otherwise. */
+function focusMainWindow(): void {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
 }
 
 app.whenReady().then(() => {
@@ -93,6 +111,7 @@ app.whenReady().then(() => {
   applyCsp(process.env['ELECTRON_RENDERER_URL']);
   registerIpc(context, app.getVersion());
   context.queue.start();
+  stopReminder = startReminder(context, focusMainWindow);
   createWindow();
 
   app.on('activate', () => {
@@ -105,6 +124,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  stopReminder?.();
   // Stopping the queue releases the model, so a closing app does not leave gigabytes
   // resident (docs/operations/performance.md).
   void context?.queue.stop();
