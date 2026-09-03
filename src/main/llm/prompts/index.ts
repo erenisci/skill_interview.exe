@@ -1,6 +1,9 @@
 import classifySkillV1 from './classify-skill.v1.md?raw';
 import comparisonCardV1 from './comparison-card.v1.md?raw';
+import discriminateClaimV1 from './discriminate-claim.v1.md?raw';
 import primerCardV1 from './primer-card.v1.md?raw';
+import questionClaimsV1 from './question-claims.v1.md?raw';
+import questionStemV1 from './question-stem.v1.md?raw';
 import resolveSourceV1 from './resolve-source.v1.md?raw';
 
 /**
@@ -31,6 +34,21 @@ export const CLASSIFY_SKILL: Prompt = {
 export const COMPARISON_CARD: Prompt = {
   version: 'comparison-card.v1',
   template: comparisonCardV1,
+};
+
+export const QUESTION_CLAIMS: Prompt = {
+  version: 'question-claims.v1',
+  template: questionClaimsV1,
+};
+
+export const DISCRIMINATE_CLAIM: Prompt = {
+  version: 'discriminate-claim.v1',
+  template: discriminateClaimV1,
+};
+
+export const QUESTION_STEM: Prompt = {
+  version: 'question-stem.v1',
+  template: questionStemV1,
 };
 
 /** Language names rather than codes: a model follows "Turkish" better than "tr". */
