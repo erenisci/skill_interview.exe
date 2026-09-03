@@ -133,6 +133,14 @@ export class CardsRepository {
     return rows.map(toCard);
   }
 
+  /** What was retrieved for a skill, reused when comparing it with a neighbour. */
+  sourcesForSkill(skillId: number): readonly Source[] {
+    const rows = this.db
+      .prepare('SELECT * FROM sources WHERE skill_id = ? ORDER BY id ASC')
+      .all(skillId) as SourceRow[];
+    return rows.map(toSource);
+  }
+
   /** Every card shows these; the product requires it rather than offering it (FR-12). */
   sourcesFor(cardId: number): readonly Source[] {
     const rows = this.db

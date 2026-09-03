@@ -80,6 +80,12 @@ export class SkillsRepository {
     this.db.prepare('UPDATE skills SET status = ? WHERE id = ?').run(status, id);
   }
 
+  setClassification(id: number, category: string, tags: readonly string[]): void {
+    this.db
+      .prepare('UPDATE skills SET category = ?, tags = ? WHERE id = ?')
+      .run(category, JSON.stringify(tags), id);
+  }
+
   remove(id: number): boolean {
     return this.db.prepare('DELETE FROM skills WHERE id = ?').run(id).changes > 0;
   }
