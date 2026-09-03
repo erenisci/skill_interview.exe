@@ -28,8 +28,21 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 
 /**
  * Set explicitly rather than left to the runtime, because the context window is a VRAM
- * decision as much as a prompt one. The real budget lands with retrieval truncation in
- * M-2; until then this is Ollama's own default, stated rather than inherited.
+ * decision as much as a prompt one.
+ *
+ * Measured against the real prompts and real retrieved text (`evals/probes/context-probe.mjs`,
+ * 2026-09-03): the tightest case is `primer-card` with the full 8,000-character source
+ * budget — 1,958 input tokens, comfortably under this window even at the primer's declared
+ * 6,000-character output ceiling (≈1,463 tokens), leaving ~675 tokens spare. Every other
+ * prompt — pairwise claims, comparison, resolution, classification — measured with more
+ * headroom still. `num_ctx: 8192` was also measured: it still fits the reference 4 GB card
+ * at 100% GPU (3.8 GB), but that is 95% of the card with nothing else running on it, so
+ * 4096 is kept as the default rather than spent on headroom nothing currently needs.
+ *
+ * This is also why `DEFAULT_MAX_SOURCE_CHARS` in research.ts is 8,000 rather than larger:
+ * doubling it would put the source alone past this window before the model writes a word.
+ * Raising both together is possible, but it is a VRAM trade-off to make deliberately, not a
+ * truncation budget to grow quietly.
  */
 const DEFAULT_NUM_CTX = 4096;
 

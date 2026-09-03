@@ -31,7 +31,10 @@ export interface ResearchDeps {
   readonly jobs: JobsRepository;
   readonly search: SearchAdapter;
   readonly llm: LlmAdapter;
-  /** Bounded by VRAM as much as by the prompt (docs/operations/performance.md). */
+  /**
+   * Bounded by VRAM as much as by the prompt (docs/operations/performance.md). The default
+   * is measured, not guessed — see `DEFAULT_MAX_SOURCE_CHARS`.
+   */
   readonly maxSourceChars?: number;
   readonly now?: () => Date;
 }
@@ -40,6 +43,13 @@ export interface ResearchPayload {
   readonly skillId: number;
 }
 
+/**
+ * Measured against real articles (`evals/probes/context-probe.mjs`, 2026-09-03): PostgreSQL
+ * and Kubernetes run 32,000–39,000 characters, so this always truncates on a substantial
+ * source, and it is the budget the default `num_ctx: 4096` in ollama.ts was sized against —
+ * raising one without the other risks the source alone overflowing the window before the
+ * model writes a word.
+ */
 const DEFAULT_MAX_SOURCE_CHARS = 8_000;
 
 export function createResearchHandler(deps: ResearchDeps): JobHandler {

@@ -37,6 +37,11 @@ export interface ComparePayload {
   readonly skillBId: number;
 }
 
+/**
+ * Half of the primer's budget, because this prompt carries two sides. Measured together
+ * (`evals/probes/context-probe.mjs`, 2026-09-03) at ~1,874 input tokens against `num_ctx:
+ * 4096` — comfortably clear even at the shared 6,000-character body ceiling on the output.
+ */
 const DEFAULT_MAX_SOURCE_CHARS = 4_000;
 
 export function createCompareHandler(deps: CompareDeps): JobHandler {

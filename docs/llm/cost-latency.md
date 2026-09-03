@@ -15,13 +15,14 @@ battery** — and the design spends them all in one place, on purpose.
 
 ## Token Budget
 
-| Task              | Input                                           | Output                                        |
-| ----------------- | ----------------------------------------------- | --------------------------------------------- |
-| Synthesize primer | Retrieved text, truncated to the per-job budget | 1–2 pages                                     |
-| Classify          | Card plus source summary                        | Small structured object                       |
-| Comparison card   | Two skills' retained sources                    | 1–2 pages                                     |
-| Generate question | One card plus sibling facts                     | One question with four options and rationales |
-| Explain answer    | Question, options, chosen option                | Short explanation                             |
+| Task              | Input                                             | Output                            |
+| ----------------- | ------------------------------------------------- | --------------------------------- |
+| Synthesize primer | Retrieved text, truncated to 8,000 chars          | 400–6,000 chars                   |
+| Classify          | Card excerpt, truncated to 2,000 chars            | Small structured object           |
+| Comparison card   | Two skills' sources, 4,000 chars a side           | 400–6,000 chars                   |
+| Separate a pair   | Two skills' primers, 3,000 chars a side           | A handful of one-sentence claims  |
+| Word a question   | The assembled correct option and three wrong ones | Stem plus explanation             |
+| Resolve a source  | Skill name plus up to five candidates' leads      | An index or `null`, plus a reason |
 
 Retrieved text is truncated rather than summarized by an extra model call: a summarization pass would double the
 generation time and add a place for facts to be lost before the writer ever sees them.
@@ -36,8 +37,19 @@ quantized KV cache extend that headroom further, at the user's option
 Measured per request on the reference machine: **~0.9 s warm, ~5.1 s cold** (4.0 s of that being the model load,
 which `keep_alive` amortizes across a job run).
 
-Concrete truncation limits are TBD until M-2 measures them against real retrieved text — guessing them would put a fabricated number in a
-doc that later reads as fact.
+**Settled, 2026-09-03** (`evals/probes/context-probe.mjs`), against real Wikipedia articles rather than guessed
+text — PostgreSQL and Kubernetes run 32,000–39,000 characters, so the primer's 8,000-character budget always
+truncates a substantial source. Every prompt measured comfortably under `num_ctx: 4096`; the tightest is the primer
+at ~1,958 input tokens, which stays clear of the window even at its declared 6,000-character output ceiling
+(≈1,463 tokens, ~675 spare). `num_ctx: 8192` was also measured and fits the reference 4 GB card at 100% GPU
+(3.8 GB) — kept as a documented option rather than the default, since it spends 95% of that card's VRAM on headroom
+nothing currently needs.
+
+Raising a truncation budget without raising `num_ctx` to match is not free: the source truncation and the context
+window were sized together, and growing one without the other risks the source alone overflowing the prompt before
+the model writes a word. Whether more source text is worth that trade — the current budget discards most of the
+Kubernetes and PostgreSQL articles — is a quality question for the eval harness (M-7), not a safety one; this
+section settles only that the current numbers do not overflow.
 
 ## Caching
 
@@ -66,7 +78,9 @@ must be visible without the user going looking for it.
 **Serial by design.** One LLM job at a time. Parallelism would double the resident memory — the exact thing the
 architecture exists to avoid — and buys nothing for a single user.
 
-Measured numbers are TBD until M-2; they depend on the user's hardware, model size, and quantization.
+Measured on the reference machine — see the per-request numbers above. They still depend on the user's hardware,
+model size and quantization; the reference machine is the deliberately-chosen floor, not a promise for every machine
+([operations/performance.md](../operations/performance.md)).
 
 ## Fallbacks
 

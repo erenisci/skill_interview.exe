@@ -66,6 +66,11 @@ const StemSchema = structured(
 export const TARGET_QUESTIONS = 5;
 export const DISTRACTORS_NEEDED = 3;
 
+/**
+ * Measured (`evals/probes/context-probe.mjs`, 2026-09-03): two sides at this budget run
+ * ~1,992 input tokens against `num_ctx: 4096`, with the claim arrays this prompt returns
+ * far smaller than a primer body — comfortable headroom either way.
+ */
 const MAX_MATERIAL_CHARS = 3_000;
 /** Both sides plus the prompt have to fit the context window alongside the model. */
 const MAX_PAIRS_PER_RUN = 4;

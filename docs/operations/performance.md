@@ -149,6 +149,28 @@ Rules:
   ([logging.md](logging.md)).
 - Checked before every release ([../quality/qa-checklist.md](../quality/qa-checklist.md)).
 
+## Context window headroom
+
+`num_ctx: 4096` is not a guess — measured against real prompts and real retrieved text
+(`evals/probes/context-probe.mjs`, 2026-09-03):
+
+| Prompt               | Input budget                    | Measured input tokens | Headroom left in the window                      |
+| -------------------- | ------------------------------- | --------------------- | ------------------------------------------------ |
+| `primer-card`        | 8,000 chars, one source         | ~1,958                | ~46% free, even at the 6,000-char output ceiling |
+| `comparison-card`    | 4,000 chars a side, two sources | ~1,874                | ~54% free                                        |
+| `contrastive-claims` | 3,000 chars a side, two primers | ~1,992                | ~51% free                                        |
+| `resolve-source`     | Up to five candidates' leads    | ~928                  | ~77% free                                        |
+| `classify-skill`     | 2,000-char excerpt              | ~926                  | ~77% free                                        |
+
+`primer-card` is the tightest case because retrieved articles run large — PostgreSQL and Kubernetes measured
+32,000–39,000 characters before truncation. `num_ctx: 8192` was measured too: it still fits the reference 4 GB card
+at 100% GPU (3.8 GB), so it stays documented as an option, but 4096 is the default because that leaves nothing for
+anything else running on a 4 GB card.
+
+**Do not raise a truncation budget without re-running this probe.** The source budget and `num_ctx` were sized
+together; growing one without the other risks the prompt overflowing the window before the model writes a word,
+which the runtime truncates silently rather than reporting.
+
 ## Measurement
 
 - Memory sampled at three points: idle after start, peak during generation, and after the queue drains. The third is
