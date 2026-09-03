@@ -163,6 +163,15 @@ export class QuestionsRepository {
     return rows.map((row) => this.hydrate(row));
   }
 
+  /** Every active question in the library, for the scheduler to pick candidates from. */
+  allActiveIds(): readonly number[] {
+    return (
+      this.db.prepare("SELECT id FROM questions WHERE status = 'active'").all() as {
+        id: number;
+      }[]
+    ).map((row) => row.id);
+  }
+
   countBySkill(skillId: number, status: QuestionStatus = 'active'): number {
     const row = this.db
       .prepare('SELECT COUNT(*) AS n FROM questions WHERE skill_id = ? AND status = ?')

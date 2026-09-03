@@ -121,6 +121,11 @@ export class CardsRepository {
     return created;
   }
 
+  /** Every card in the library, for the scheduler to pick candidates from. */
+  allIds(): readonly number[] {
+    return (this.db.prepare('SELECT id FROM cards').all() as { id: number }[]).map((row) => row.id);
+  }
+
   findById(id: number): Card | null {
     const row = this.db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as CardRow | undefined;
     return row ? toCard(row) : null;

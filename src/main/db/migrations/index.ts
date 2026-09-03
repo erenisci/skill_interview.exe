@@ -2,6 +2,7 @@ import initial from './001-initial.sql?raw';
 import jobRetryAt from './002-job-retry-at.sql?raw';
 import claimsFeedback from './003-claims-feedback.sql?raw';
 import pairwiseClaims from './004-pairwise-claims.sql?raw';
+import dailySet from './005-daily-set.sql?raw';
 
 export interface Migration {
   readonly version: number;
@@ -18,4 +19,5 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 2, name: 'job-retry-at', sql: jobRetryAt },
   { version: 3, name: 'claims-feedback', sql: claimsFeedback },
   { version: 4, name: 'pairwise-claims', sql: pairwiseClaims },
+  { version: 5, name: 'daily-set', sql: dailySet },
 ];
