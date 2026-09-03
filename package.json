@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "ts-fsrs": "5.4.2",
     "zod": "^4.5.4"
   },
   "devDependencies": {
