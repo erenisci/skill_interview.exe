@@ -114,6 +114,7 @@ erDiagram
         string status
         int attempts
         string error
+        string retry_at "not-before time of a backoff; null when due"
         string created_at
         string updated_at
     }

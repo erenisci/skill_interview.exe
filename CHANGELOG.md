@@ -15,6 +15,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `LlmAdapter` with an Ollama implementation and a model-free stub, including model-release (`keep_alive`) and JSON-Schema-constrained decoding.
 - Startup readiness check that tells "Ollama missing", "no model pulled", and "selected model gone" apart.
 - Skills view: add, list, and remove skills; setup screen for a missing or unconfigured model.
+- Durable background job queue: retries transient failures with a backoff that survives a restart, gives up after a
+  limit, resumes work interrupted by a crash, and releases the model once the queue drains.
 
 ### Changed
 

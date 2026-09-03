@@ -34,8 +34,8 @@ skill_interview.exe/
 │   │   │   └── prompts/       # (M-2) prompt templates, versioned
 │   │   ├── startup/           # readiness check: runtime, model list, selection
 │   │   ├── util/              # slug normalization, structured logger
-│   │   ├── search/            # (M-2) SearchAdapter, wikipedia, duckduckgo, extract
-│   │   ├── queue/             # (M-2) durable job loop: claim, retry, model release
+│   │   ├── queue/             # durable job loop: claim, retry, backoff, model release
+│   │   ├── search/            # (M-2) SearchAdapter, github, docs, wikipedia, extract
 │   │   ├── pipeline/          # (M-2) retrieve → extract → synthesize → classify → relate → generate → validate
 │   │   ├── scheduler/         # (M-5) FSRS state and daily-set assembly
 │   │   ├── notify/            # (M-5) tray icon and reminders

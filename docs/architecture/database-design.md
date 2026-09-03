@@ -133,21 +133,26 @@ The fastest-growing table. Append-only.
 
 `favorites(id, item_type, item_id, note, created_at)` — survives deletion of its skill, with a marker.
 
-`jobs(id, kind, payload, status, attempts, error, created_at, updated_at)` — the durable queue. `status` is
-`pending` · `running` · `done` · `failed`; rows stuck in `running` past a timeout are reset at startup.
+`jobs(id, kind, payload, status, attempts, error, retry_at, created_at, updated_at)` — the durable queue. `status`
+is `pending` · `running` · `done` · `failed`; rows left `running` by an abrupt shutdown are reset at startup.
+
+`retry_at` is the "not before" time of a backoff. Without it the loop would either spin on a failing job or block
+everything behind it for the backoff. Storing it rather than holding a timer in memory means **a restart does not
+bypass a backoff** — which matters when the reason for the backoff is a provider rate limit. `resetStale` therefore
+clears it only for jobs it actually resets; a job already waiting out a backoff keeps its schedule.
 
 `settings(key, value)` — content language, daily counts, reminder time, model choice, Ollama URL, optional search key.
 
 ## Indexes
 
-| Index                                 | Why                                      |
-| ------------------------------------- | ---------------------------------------- |
-| `skills(slug)` UNIQUE                 | Duplicate detection on every add         |
-| `reviews(item_type, item_id, due_at)` | The daily-set query; must not table-scan |
-| `jobs(status, created_at)`            | Queue pickup                             |
-| `cards(skill_id, type)`               | Card lookup per skill                    |
-| `options(question_id)`                | Always fetched with its question         |
-| FTS5 over `cards(title, body_md)`     | User-facing search                       |
+| Index                                 | Why                                           |
+| ------------------------------------- | --------------------------------------------- |
+| `skills(slug)` UNIQUE                 | Duplicate detection on every add              |
+| `reviews(item_type, item_id, due_at)` | The daily-set query; must not table-scan      |
+| `jobs(status, retry_at, created_at)`  | Queue pickup, skipping jobs still backing off |
+| `cards(skill_id, type)`               | Card lookup per skill                         |
+| `options(question_id)`                | Always fetched with its question              |
+| FTS5 over `cards(title, body_md)`     | User-facing search                            |
 
 ## Migrations
 

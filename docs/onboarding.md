@@ -91,9 +91,9 @@ Later milestones add to this: the job queue panel and the daily set do not exist
 | Repositories (all SQL lives here)    | `src/main/db/repositories/` | yes        |
 | LLM adapters                         | `src/main/llm/`             | yes        |
 | Startup readiness check              | `src/main/startup/`         | yes        |
+| Job queue loop                       | `src/main/queue/`           | yes        |
 | Prompt templates                     | `src/main/llm/prompts/`     | M-2        |
 | Search adapters                      | `src/main/search/`          | M-2        |
-| Job queue loop                       | `src/main/queue/`           | M-2        |
 | Pipeline stages                      | `src/main/pipeline/`        | M-2        |
 | Scheduler                            | `src/main/scheduler/`       | M-5        |
 | Evaluation sets and runner           | `evals/`                    | M-7        |
