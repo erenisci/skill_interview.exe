@@ -17,6 +17,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Skills view: add, list, and remove skills; setup screen for a missing or unconfigured model.
 - Durable background job queue: retries transient failures with a backoff that survives a restart, gives up after a
   limit, resumes work interrupted by a crash, and releases the model once the queue drains.
+- Research pipeline: adding a skill now searches GitHub, its declared documentation and Wikipedia, resolves which
+  result is actually about that skill, and writes a grounded primer card stored with its source and licence.
+- Skills view shows a finished card with its sources, and follows a skill's progress while research runs.
 
 ### Changed
 

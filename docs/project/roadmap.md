@@ -40,7 +40,15 @@ and display.
 **Exit criteria.** Adding `nginx` yields a 1–2 page card with at least one working source link, generated in the
 background without blocking the UI. **And:** adding `Zustand` grounds in the React state library or fails visibly —
 never in the article about Pompeii.
-**Status.** Not started. Scope grew after the resolution probes; see ADR-0003.
+**Status.** **Done — 2026-09-03.** Verified against the real GitHub and Wikipedia APIs and a real `qwen3:4b`:
+
+- `nginx` — 8 candidates found, 4 passed the name gate, resolved to `github.com/nginx/nginx`, and produced a
+  three-paragraph primer stored with its BSD-2-Clause source. 10.8 s end to end.
+- `Zustand` — 7 candidates, 3 passed the name gate, resolved to `pmndrs/zustand`. **Not Pompeii**, which is the
+  failure ADR-0003 exists to prevent. 7.6 s.
+
+The card text was accurate and readable, which is a first positive signal for the 4B hypothesis in
+[TD-07](tech-debt.md).
 
 ### M-3 — The skill graph
 
