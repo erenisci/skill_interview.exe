@@ -70,6 +70,8 @@ export interface Job {
   readonly status: JobStatus;
   readonly attempts: number;
   readonly error: string | null;
+  /** Set while a job waits out a retry backoff; it is not claimable before this. */
+  readonly retryAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

@@ -8,6 +8,7 @@ interface JobRow {
   status: string;
   attempts: number;
   error: string | null;
+  retry_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +21,7 @@ function toJob(row: JobRow): Job {
     status: row.status as JobStatus,
     attempts: row.attempts,
     error: row.error,
+    retryAt: row.retry_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -41,13 +43,21 @@ export class JobsRepository {
     return toJob(row);
   }
 
+  /**
+   * Takes the oldest job that is due, marking it `running` in the same transaction so a
+   * second caller cannot claim it. A job waiting out a backoff (`retry_at` in the future)
+   * is skipped rather than blocking the ones behind it.
+   */
   claimNext(now: string): Job | null {
     const claim = this.db.transaction((): JobRow | undefined => {
       const row = this.db
         .prepare(
-          `SELECT * FROM jobs WHERE status = 'pending' ORDER BY created_at ASC, id ASC LIMIT 1`,
+          `SELECT * FROM jobs
+           WHERE status = 'pending' AND (retry_at IS NULL OR retry_at <= ?)
+           ORDER BY created_at ASC, id ASC
+           LIMIT 1`,
         )
-        .get() as JobRow | undefined;
+        .get(now) as JobRow | undefined;
       if (!row) return undefined;
       this.db
         .prepare(
@@ -66,14 +76,30 @@ export class JobsRepository {
       .run(status, error ?? null, now, id);
   }
 
+  /** Returns a job to the queue, not to be claimed again before `retryAt`. */
+  retryLater(id: number, retryAt: string, now: string, error: string): void {
+    this.db
+      .prepare(
+        `UPDATE jobs SET status = 'pending', retry_at = ?, error = ?, updated_at = ? WHERE id = ?`,
+      )
+      .run(retryAt, error, now, id);
+  }
+
   /**
    * Rows left in `running` by an abrupt shutdown are reset so the queue resumes.
    * Called once at startup — see docs/architecture/system-design.md.
    */
   resetStale(now: string): number {
     return this.db
-      .prepare(`UPDATE jobs SET status = 'pending', updated_at = ? WHERE status = 'running'`)
+      .prepare(
+        `UPDATE jobs SET status = 'pending', retry_at = NULL, updated_at = ? WHERE status = 'running'`,
+      )
       .run(now).changes;
+  }
+
+  findById(id: number): Job | null {
+    const row = this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as JobRow | undefined;
+    return row ? toJob(row) : null;
   }
 
   countByStatus(status: JobStatus): number {
