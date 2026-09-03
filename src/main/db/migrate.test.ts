@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
 import type { Database as Db } from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { currentVersion, migrate } from './migrate';
 import { MIGRATIONS } from './migrations';

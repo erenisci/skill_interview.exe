@@ -3,9 +3,9 @@ import { log } from '../util/logger';
 import type { Candidate, ProviderId, SearchAdapter } from './adapter';
 
 export type { Candidate, ProviderId, SearchAdapter } from './adapter';
+export { htmlToText, isUsable, markdownToText, truncate } from './extract';
 export { GithubSearchAdapter } from './github';
 export { WikipediaSearchAdapter } from './wikipedia';
-export { htmlToText, markdownToText, isUsable, truncate } from './extract';
 
 /**
  * Runs every provider and merges what comes back.

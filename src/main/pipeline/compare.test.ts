@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3';
-import type { Database as Db } from 'better-sqlite3';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Job } from '@shared/domain';
+import type { Database as Db } from 'better-sqlite3';
+import Database from 'better-sqlite3';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate } from '../db/migrate';
 import { CardsRepository } from '../db/repositories/cards';
 import { JobsRepository } from '../db/repositories/jobs';

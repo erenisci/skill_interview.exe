@@ -1,7 +1,7 @@
-import resolveSourceV1 from './resolve-source.v1.md?raw';
-import primerCardV1 from './primer-card.v1.md?raw';
 import classifySkillV1 from './classify-skill.v1.md?raw';
 import comparisonCardV1 from './comparison-card.v1.md?raw';
+import primerCardV1 from './primer-card.v1.md?raw';
+import resolveSourceV1 from './resolve-source.v1.md?raw';
 
 /**
  * Prompts are product code: a prompt edit changes user-visible output without changing a

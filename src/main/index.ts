@@ -1,5 +1,5 @@
-import { join } from 'node:path';
 import { app, BrowserWindow, session, shell } from 'electron';
+import { join } from 'node:path';
 import { createContext, type AppContext } from './context';
 import { registerIpc } from './ipc';
 import { log } from './util/logger';

@@ -1,12 +1,12 @@
-import { ipcMain } from 'electron';
 import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shared/ipc';
 import { appError, err, ok } from '@shared/result';
+import { ipcMain } from 'electron';
 import type { AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
 import { RelationsRepository } from '../db/repositories/relations';
 import { checkLlmReadiness } from '../startup/readiness';
-import { normalizeSkillName, toSlug } from '../util/slug';
 import { log } from '../util/logger';
+import { normalizeSkillName, toSlug } from '../util/slug';
 
 type Handler<C extends Channel> = (
   request: IpcRequest<C>,

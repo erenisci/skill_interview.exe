@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
 import type { ContentLanguage, Skill, SystemStatus } from '@shared/domain';
 import { CHANNELS, type CardWithSources, type RelatedSkill } from '@shared/ipc';
+import { useCallback, useEffect, useState } from 'react';
 
 interface Props {
   readonly status: SystemStatus;

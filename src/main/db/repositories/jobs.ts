@@ -1,5 +1,5 @@
-import type { Db } from '../index';
 import type { Job, JobKind, JobStatus } from '@shared/domain';
+import type { Db } from '../index';
 
 interface JobRow {
   id: number;

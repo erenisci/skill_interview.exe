@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
 import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shared/ipc';
+import { contextBridge, ipcRenderer } from 'electron';
 
 /**
  * The entire surface the renderer gets. Narrow and typed on purpose: a generic

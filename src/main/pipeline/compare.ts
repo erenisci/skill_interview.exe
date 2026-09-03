@@ -1,11 +1,11 @@
-import { z } from 'zod';
-import { appError, err, ok, type Result } from '@shared/result';
 import type { Job } from '@shared/domain';
+import { appError, err, ok, type Result } from '@shared/result';
+import { z } from 'zod';
 import type { CardsRepository, NewSource } from '../db/repositories/cards';
 import type { SkillsRepository } from '../db/repositories/skills';
 import type { LlmAdapter } from '../llm/adapter';
-import { structured } from '../llm/schema';
 import { COMPARISON_CARD, LANGUAGE_NAMES, SYSTEM_PREAMBLE, render } from '../llm/prompts';
+import { structured } from '../llm/schema';
 import type { JobHandler } from '../queue/queue';
 import { truncate } from '../search/extract';
 import { log } from '../util/logger';

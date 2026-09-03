@@ -1,5 +1,5 @@
-import type { Db } from '../index';
 import type { Classified, Relation, RelationKind } from '../../pipeline/relate';
+import type { Db } from '../index';
 
 interface RelationRow {
   skill_a_id: number;

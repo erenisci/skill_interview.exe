@@ -1,5 +1,5 @@
-import type { Db } from '../index';
 import type { ContentLanguage, Skill, SkillStatus } from '@shared/domain';
+import type { Db } from '../index';
 
 /** The raw shape SQLite hands back. Mapped to the domain type before it leaves this file. */
 interface SkillRow {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
 import type { SystemStatus } from '@shared/domain';
 import { CHANNELS } from '@shared/ipc';
+import { useCallback, useEffect, useState } from 'react';
 import { SetupView } from './views/SetupView';
 import { SkillsView } from './views/SkillsView';
 

@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { appError, err, ok } from '@shared/result';
+import { z } from 'zod';
 import type { StructuredSchema } from './adapter';
 
 /**

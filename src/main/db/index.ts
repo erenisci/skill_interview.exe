@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
 import type { Database as Db } from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { migrate } from './migrate';
 
 export type { Db };

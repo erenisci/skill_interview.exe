@@ -1,5 +1,5 @@
-import { appError, err, ok, type Result } from '@shared/result';
 import type { Job } from '@shared/domain';
+import { appError, err, ok, type Result } from '@shared/result';
 import type { CardsRepository } from '../db/repositories/cards';
 import type { JobsRepository } from '../db/repositories/jobs';
 import type { RelationsRepository } from '../db/repositories/relations';

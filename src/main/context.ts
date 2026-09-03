@@ -1,14 +1,14 @@
-import { join } from 'node:path';
 import type { JobKind } from '@shared/domain';
+import { join } from 'node:path';
 import { openDatabase, type Db } from './db';
 import { CardsRepository } from './db/repositories/cards';
 import { JobsRepository } from './db/repositories/jobs';
-import { SettingsRepository } from './db/repositories/settings';
 import { RelationsRepository } from './db/repositories/relations';
+import { SettingsRepository } from './db/repositories/settings';
 import { SkillsRepository } from './db/repositories/skills';
+import type { LlmAdapter } from './llm/adapter';
 import { OllamaLlmAdapter } from './llm/ollama';
 import { StubLlmAdapter } from './llm/stub';
-import type { LlmAdapter } from './llm/adapter';
 import { createCompareHandler } from './pipeline/compare';
 import { createResearchFailureHandler, createResearchHandler } from './pipeline/research';
 import { JobQueue, type JobHandler } from './queue/queue';

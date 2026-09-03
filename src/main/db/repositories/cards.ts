@@ -1,5 +1,5 @@
-import type { Db } from '../index';
 import type { Card, CardType, ContentLanguage, Source } from '@shared/domain';
+import type { Db } from '../index';
 
 interface SourceRow {
   id: number;

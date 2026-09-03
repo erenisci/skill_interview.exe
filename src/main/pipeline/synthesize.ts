@@ -1,9 +1,9 @@
-import { z } from 'zod';
-import { appError, err, ok, type Result } from '@shared/result';
 import type { ContentLanguage } from '@shared/domain';
+import { appError, err, ok, type Result } from '@shared/result';
+import { z } from 'zod';
 import type { LlmAdapter } from '../llm/adapter';
-import { structured } from '../llm/schema';
 import { LANGUAGE_NAMES, PRIMER_CARD, SYSTEM_PREAMBLE, render } from '../llm/prompts';
+import { structured } from '../llm/schema';
 
 /**
  * Writes a primer from retrieved text, and from nothing else.

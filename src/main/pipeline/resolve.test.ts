@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Candidate } from '../search/adapter';
 import { StubLlmAdapter } from '../llm/stub';
+import type { Candidate } from '../search/adapter';
 import { applyNameGate, nameMatches, resolveSource } from './resolve';
 
 function candidate(identity: string, extra: Partial<Candidate> = {}): Candidate {

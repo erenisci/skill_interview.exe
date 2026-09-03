@@ -1,7 +1,7 @@
 import { appError, err, ok, type Result } from '@shared/result';
 import { fetchJson, fetchText as httpGet } from '../util/http';
 import type { Candidate, SearchAdapter } from './adapter';
-import { isUsable, markdownToText, htmlToText } from './extract';
+import { htmlToText, isUsable, markdownToText } from './extract';
 
 /**
  * The primary provider for tools, searched on **default relevance**.

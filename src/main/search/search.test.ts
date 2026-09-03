@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appError, err, ok, type Result } from '@shared/result';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Candidate, SearchAdapter } from './adapter';
 import { GithubSearchAdapter } from './github';
-import { WikipediaSearchAdapter } from './wikipedia';
 import { CompositeSearchAdapter } from './index';
+import { WikipediaSearchAdapter } from './wikipedia';
 
 /** Routes canned replies by URL substring, and records what was requested. */
 function stubFetch(routes: Record<string, unknown>): string[] {
