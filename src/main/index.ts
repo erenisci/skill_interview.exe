@@ -1,7 +1,9 @@
 import { app, BrowserWindow, session, shell } from 'electron';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createContext, type AppContext } from './context';
 import { registerIpc } from './ipc';
+import { resolveDataDir } from './util/data-dir';
 import { log } from './util/logger';
 
 let context: AppContext | null = null;
@@ -62,18 +64,32 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // The resolved path is never logged below: the default `userData` path contains the
+  // Windows username, which the logging rules forbid outright regardless of build mode
+  // (docs/operations/logging.md). `source` alone is enough to tell a stray override from a
+  // broken default.
+  const { path: dataDir, source: dataDirSource } = resolveDataDir(app.getPath('userData'));
   try {
-    context = createContext(app.getPath('userData'));
+    // Electron creates `userData` itself; a `SKILL_INTERVIEW_DATA_DIR` override may not
+    // exist yet, and better-sqlite3 cannot open a database whose parent directory is
+    // missing.
+    mkdirSync(dataDir, { recursive: true });
+    context = createContext(dataDir);
   } catch (cause) {
-    // A migration failure is fatal: the app must refuse to start rather than run on a
-    // half-migrated database (docs/operations/error-handling.md).
+    // A migration failure, or the database directory itself being unusable, is fatal: the
+    // app must refuse to start rather than run on a half-migrated or missing database
+    // (docs/operations/error-handling.md).
     const detail = cause instanceof Error ? cause.message : String(cause);
-    log.error('db', 'startup failed', { detail });
+    log.error('db', 'startup failed', { detail, dataDirSource });
     app.exit(1);
     return;
   }
 
-  log.info('app', 'started', { version: app.getVersion(), electron: process.versions.electron });
+  log.info('app', 'started', {
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    dataDirSource,
+  });
   applyCsp(process.env['ELECTRON_RENDERER_URL']);
   registerIpc(context, app.getVersion());
   context.queue.start();

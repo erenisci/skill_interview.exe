@@ -25,8 +25,11 @@ Environment variables exist only for development and build tooling. **A user nev
 | `OLLAMA_HOST`              | Read by Ollama itself, not by this app. Documented because it explains a common support case | No                                               | `http://localhost:11434`                  |
 | `ELECTRON_MIRROR`          | Alternate download mirror for Electron binaries during `npm install`                         | No                                               | `https://npmmirror.com/mirrors/electron/` |
 
-`SKILL_INTERVIEW_DATA_DIR` is **not wired up yet** — the database currently always lives under Electron's `userData`
-path. It is listed here because it is planned, not because it works; see Next Up in [../progress.md](../progress.md).
+`SKILL_INTERVIEW_DATA_DIR` is wired up: `resolveDataDir()` in `src/main/util/data-dir.ts` reads it, resolves it to
+an absolute path, and `src/main/index.ts` creates the directory if it does not exist before the database opens — a
+fresh override directory has nothing in it yet, unlike Electron's `userData`, which already exists. Only whether the
+override was used is logged, never the path itself: the default `userData` path contains the Windows username, and
+[logging.md](logging.md) forbids that outright regardless of build mode.
 
 There is **no `.env` file** in this project and none should be added. If one appears, something has been designed the
 wrong way — see below.
