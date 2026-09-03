@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ContentLanguage, Skill, SystemStatus } from '@shared/domain';
-import { CHANNELS } from '@shared/ipc';
+import { CHANNELS, type CardWithSources } from '@shared/ipc';
 
 interface Props {
   readonly status: SystemStatus;
   readonly onOpenSetup: () => void;
 }
+
+/** Research runs in the background, so the list has to notice when it finishes. */
+const POLL_INTERVAL_MS = 2_000;
+const isWorking = (skills: readonly Skill[]): boolean =>
+  skills.some((s) => s.status === 'pending' || s.status === 'researching');
 
 export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   const [skills, setSkills] = useState<readonly Skill[]>([]);
@@ -13,6 +18,8 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   const [language, setLanguage] = useState<ContentLanguage>('en');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [cards, setCards] = useState<readonly CardWithSources[]>([]);
 
   const load = useCallback(async (cancelled?: () => boolean) => {
     const result = await window.api.invoke(CHANNELS.skillsList, undefined);
@@ -29,6 +36,13 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
       cancelled = true;
     };
   }, [load]);
+
+  // Poll only while something is still being researched, then stop.
+  useEffect(() => {
+    if (!isWorking(skills)) return;
+    const timer = setInterval(() => void load(), POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [skills, load]);
 
   async function add(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -48,7 +62,20 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   async function remove(id: number): Promise<void> {
     const result = await window.api.invoke(CHANNELS.skillsRemove, id);
     if (!result.ok) setError(result.error.message);
+    if (openId === id) setOpenId(null);
     await load();
+  }
+
+  async function toggle(skill: Skill): Promise<void> {
+    if (openId === skill.id) {
+      setOpenId(null);
+      return;
+    }
+    setOpenId(skill.id);
+    setCards([]);
+    const result = await window.api.invoke(CHANNELS.cardsForSkill, skill.id);
+    if (result.ok) setCards(result.value);
+    else setError(result.error.message);
   }
 
   return (
@@ -88,17 +115,55 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
         ) : (
           <ul className="list">
             {skills.map((skill) => (
-              <li key={skill.id}>
-                <span>
-                  {skill.name}{' '}
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {skill.contentLang}
+              <li key={skill.id} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
+                  <span>
+                    {skill.name}{' '}
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {skill.contentLang}
+                    </span>
                   </span>
-                </span>
-                <span className="row">
-                  <span className={`badge ${skill.status}`}>{skill.status}</span>
-                  <button onClick={() => void remove(skill.id)}>Remove</button>
-                </span>
+                  <span className="row">
+                    <span className={`badge ${skill.status}`}>{skill.status}</span>
+                    {skill.status === 'ready' && (
+                      <button onClick={() => void toggle(skill)}>
+                        {openId === skill.id ? 'Hide' : 'Read'}
+                      </button>
+                    )}
+                    <button onClick={() => void remove(skill.id)}>Remove</button>
+                  </span>
+                </div>
+
+                {openId === skill.id && (
+                  <div className="card">
+                    {cards.length === 0 ? (
+                      <p className="muted">Loading…</p>
+                    ) : (
+                      cards.map(({ card, sources }) => (
+                        <article key={card.id}>
+                          <h3>{card.title}</h3>
+                          {/* Rendered as text: this derives from an arbitrary web page. */}
+                          <p className="card-body">{card.bodyMd}</p>
+                          <p className="muted" style={{ fontSize: 12 }}>
+                            Sources —{' '}
+                            {sources.map((source, i) => (
+                              <span key={source.id}>
+                                {i > 0 && ' · '}
+                                <a href={source.url} target="_blank" rel="noreferrer">
+                                  {source.title}
+                                </a>
+                                {source.license ? ` (${source.license})` : ''}
+                              </span>
+                            ))}
+                          </p>
+                          <p className="muted" style={{ fontSize: 12 }}>
+                            {card.model} · {card.promptVersion}
+                          </p>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

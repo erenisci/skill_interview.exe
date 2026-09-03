@@ -172,6 +172,29 @@ code {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
+.card {
+  margin: 14px 0 4px;
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.card h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.card-body {
+  white-space: pre-wrap;
+  margin: 0 0 14px;
+  line-height: 1.65;
+}
+
+.card a {
+  color: var(--accent);
+}
+
 .error {
   color: var(--danger);
   margin: 12px 0 0;

@@ -59,16 +59,29 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
       );
     }
 
+    const now = new Date().toISOString();
     const skill = ctx.skills.insert({
       name,
       slug,
       contentLang: request.contentLang,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     });
+    // Research is background work from the moment the skill exists: the user never waits
+    // on the model, and a crash before it runs leaves the job on disk.
+    ctx.jobs.enqueue('research', { skillId: skill.id }, now);
     // Log the identifier, never the name — the skill list is the user's CV.
     log.info('ipc', 'skill added', { skillId: skill.id });
     return ok(skill);
   });
+
+  handle(CHANNELS.cardsForSkill, ctx, (skillId) =>
+    ok(
+      ctx.cards.listBySkill(skillId).map((card) => ({
+        card,
+        sources: ctx.cards.sourcesFor(card.id),
+      })),
+    ),
+  );
 
   handle(CHANNELS.skillsRemove, ctx, (id) => {
     if (!ctx.skills.remove(id)) {

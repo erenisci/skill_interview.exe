@@ -76,6 +76,7 @@ app.whenReady().then(() => {
   log.info('app', 'started', { version: app.getVersion(), electron: process.versions.electron });
   applyCsp(process.env['ELECTRON_RENDERER_URL']);
   registerIpc(context, app.getVersion());
+  context.queue.start();
   createWindow();
 
   app.on('activate', () => {
@@ -88,6 +89,9 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  // Stopping the queue releases the model, so a closing app does not leave gigabytes
+  // resident (docs/operations/performance.md).
+  void context?.queue.stop();
   context?.db.close();
   log.info('app', 'stopped');
 });
