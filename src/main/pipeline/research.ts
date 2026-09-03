@@ -138,6 +138,11 @@ export function createResearchHandler(deps: ResearchDeps): JobHandler {
       });
     }
 
+    // Questions are enqueued whether or not the skill was classified. An unclassified
+    // skill has no neighbours to borrow distractors from yet, and the handler treats that
+    // as "come back later" rather than as a failure.
+    deps.jobs.enqueue('generate-questions', { skillId: skill.id }, fetchedAt);
+
     deps.skills.setStatus(skill.id, 'ready');
     log.info('pipeline', 'primer written', {
       skillId: skill.id,
