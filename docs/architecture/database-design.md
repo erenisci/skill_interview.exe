@@ -27,13 +27,13 @@ Set on every open, in `src/main/db/index.ts`. None of them are defaults, and eac
 
 Five groups of tables:
 
-| Group      | Tables                                      | Role                                              |
-| ---------- | ------------------------------------------- | ------------------------------------------------- |
-| Knowledge  | `skills`, `skill_relations`                 | What the user claims to know, and how it connects |
-| Provenance | `sources`, `card_sources`                   | Where every generated claim came from             |
-| Content    | `cards`, `questions`, `options`, `claims`   | The generated material                            |
-| Learning   | `reviews`, `favorites`, `question_feedback` | What the user has done with it                    |
-| Machinery  | `jobs`, `settings`                          | Background work and preferences                   |
+| Group      | Tables                                                         | Role                                              |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------- |
+| Knowledge  | `skills`, `skill_relations`                                    | What the user claims to know, and how it connects |
+| Provenance | `sources`, `card_sources`                                      | Where every generated claim came from             |
+| Content    | `cards`, `questions`, `options`, `claims`                      | The generated material                            |
+| Learning   | `reviews`, `daily_set_items`, `favorites`, `question_feedback` | What the user has done with it                    |
+| Machinery  | `jobs`, `settings`                                             | Background work and preferences                   |
 
 Two rules shape the whole schema:
 
@@ -160,7 +160,39 @@ problem ([adr/0005-feedback-as-eval-data.md](adr/0005-feedback-as-eval-data.md))
 | `stability`, `difficulty` | REAL       | FSRS state          |
 | `reps`, `lapses`          | INTEGER    |                     |
 
-The fastest-growing table. Append-only.
+The fastest-growing table. Append-only — an answer never updates a prior row, it inserts a
+new one. `rating` stores the FSRS `Rating` enum value the app actually uses (`again` = 1,
+`good` = 3), not an app-invented code
+([ADR-0007](adr/0007-fsrs-scheduler.md)).
+
+Reading the _current_ state of an item — what the scheduler builds the next review on — means
+finding the latest row for `(item_type, item_id)`, via `MAX(id)` grouped by item; there is no
+separate "current state" table, on the same append-only-log reasoning as `jobs`.
+
+### `daily_set_items`
+
+| Column         | Type       | Notes                                        |
+| -------------- | ---------- | -------------------------------------------- |
+| `id`           | INTEGER PK |                                              |
+| `set_date`     | TEXT       | Local `YYYY-MM-DD` — the day this belongs to |
+| `item_type`    | TEXT       | `card` · `question`                          |
+| `item_id`      | INTEGER    |                                              |
+| `position`     | INTEGER    | Assembly order                               |
+| `completed_at` | TEXT NULL  | Null until answered                          |
+
+Unique on `(set_date, item_type, item_id)`.
+
+Why this exists as a table rather than a live query: FR-43 requires that closing and
+reopening the app resumes the same day's set, but assembling fresh from `reviews` on every
+open would let the set drift mid-day as items become newly due. So a set is assembled once
+per local day and its **membership** is frozen here. Its **content** is not — the read path
+re-fetches each card or question live and drops anything no longer fit to show (a question
+flagged after assembly, say), so a stale reference here never becomes a stale card on screen
+(`src/main/scheduler/daily-set-service.ts`).
+
+No foreign key on `item_id`, for the same reason `reviews.item_id` has none: it names a row
+in one of two different tables depending on `item_type`, and SQLite cannot express a
+conditional foreign key.
 
 ### `favorites`, `jobs`, `settings`
 
@@ -178,17 +210,19 @@ clears it only for jobs it actually resets; a job already waiting out a backoff 
 
 ## Indexes
 
-| Index                                 | Why                                           |
-| ------------------------------------- | --------------------------------------------- |
-| `skills(slug)` UNIQUE                 | Duplicate detection on every add              |
-| `reviews(item_type, item_id, due_at)` | The daily-set query; must not table-scan      |
-| `jobs(status, retry_at, created_at)`  | Queue pickup, skipping jobs still backing off |
-| `cards(skill_id, type)`               | Card lookup per skill                         |
-| `options(question_id)`                | Always fetched with its question              |
-| `questions(skill_id, status)`         | The read path never pays for flagged rows     |
-| `claims(skill_id)`                    | The distractor pool, fetched per neighbour    |
-| `question_feedback(question_id)`      | Flag counts per question                      |
-| FTS5 over `cards(title, body_md)`     | User-facing search                            |
+| Index                                                  | Why                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| `skills(slug)` UNIQUE                                  | Duplicate detection on every add                         |
+| `reviews(item_type, item_id, due_at)`                  | The daily-set query; must not table-scan                 |
+| `jobs(status, retry_at, created_at)`                   | Queue pickup, skipping jobs still backing off            |
+| `cards(skill_id, type)`                                | Card lookup per skill                                    |
+| `options(question_id)`                                 | Always fetched with its question                         |
+| `questions(skill_id, status)`                          | The read path never pays for flagged rows                |
+| `claims(skill_id)`                                     | The distractor pool, fetched per neighbour               |
+| `question_feedback(question_id)`                       | Flag counts per question                                 |
+| `daily_set_items(set_date, item_type, item_id)` UNIQUE | One row per item per day; also the assembly-freeze check |
+| `daily_set_items(set_date, position)`                  | The read path's only query: today's set, in order        |
+| FTS5 over `cards(title, body_md)`                      | User-facing search                                       |
 
 ## Migrations
 

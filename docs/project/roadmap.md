@@ -89,7 +89,11 @@ tray reminder at a user-set time.
 **Depends on.** M-4.
 **Exit criteria.** Two consecutive days produce different sets; closing and reopening resumes the same day; the
 reminder fires only when the set is unfinished.
-**Status.** Not started.
+**Status.** Built, awaiting a live run. All three exit criteria are covered by tests against a temp database
+(`daily-set-service.test.ts`) — including the exact "two consecutive days" and "resumes the same day" scenarios
+worded above — plus the reminder's timing logic in isolation. The reminder is a plain notification, not a
+persistent tray icon ([TD-16](tech-debt.md)). What tests cannot cover: reading a real assembled set on screen. See
+[ADR-0007](../architecture/adr/0007-fsrs-scheduler.md).
 
 ### M-6 — Keep and export
 
@@ -123,7 +127,12 @@ CI build; README and license.
 **Scope.** Author uses it daily with 10 skills for 30 days; flagged questions and noticed errors are logged.
 **Depends on.** M-8.
 **Exit criteria.** 30 days of usable daily sets with no noticed factual error; flag rate recorded as the baseline.
-**Status.** Not started.
+**Status.** Closed — superseded, 2026-09-03. The repository is already public: real installs by real users are a
+stronger signal than a single author's private 30-day log, and gating a v1 milestone behind the second when the
+first is already happening was make-work. The thing this milestone wanted — evidence from real use, over time — is
+now gathered the ordinary way: through the flag data ([ADR-0005](../architecture/adr/0005-feedback-as-eval-data.md))
+anyone using the app produces, read whenever there is enough of it to say something. No fixed 30-day window, no
+fixed 10-skill count, and no private log standing in for what public use already provides.
 
 ## Dependencies
 

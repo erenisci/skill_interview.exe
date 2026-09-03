@@ -38,12 +38,13 @@ skill_interview.exe/
 │   │   ├── search/            # (M-2) SearchAdapter, github, docs, wikipedia, extract
 │   │   ├── pipeline/          # retrieve → extract → synthesize → classify → relate → claims → assemble → validate
 │   │   │                      #   question-validate.ts is pure: no model, no db, no clock
-│   │   ├── scheduler/         # (M-5) FSRS state and daily-set assembly
-│   │   ├── notify/            # (M-5) tray icon and reminders
+│   │   ├── scheduler/         # FSRS (via ts-fsrs) + daily-set assembly + the orchestrating service
+│   │   │                      #   fsrs.ts is the only file that knows ts-fsrs exists
+│   │   ├── notify/            # the reminder: reminder.ts is pure, index.ts owns the one Notification call
 │   │   └── export/            # (M-6) favourites → Markdown
 │   ├── renderer/              # React UI — no DB, no network, no Node
 │   │   ├── App.tsx
-│   │   ├── views/             # setup · skills · questions (daily set, favourites, settings later)
+│   │   ├── views/             # setup · skills · questions · daily set (favourites, settings later)
 │   │   └── styles/
 │   ├── preload/               # contextBridge surface, nothing else
 │   └── shared/                # types crossing the IPC boundary; no runtime deps

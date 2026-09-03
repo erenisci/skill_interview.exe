@@ -19,12 +19,15 @@ erDiagram
     SKILLS ||--o{ QUESTIONS : "tested by"
     SKILLS ||--o{ SKILL_RELATIONS : "relates to"
     SKILLS ||--o{ OPTIONS : "supplies distractors for"
+    SKILLS ||--o{ CLAIMS : "separated by pair"
 
     CARDS ||--o{ CARD_SOURCES : "grounded in"
     SOURCES ||--o{ CARD_SOURCES : "cited by"
     CARDS ||--o{ QUESTIONS : "generates"
+    CARDS ||--o{ CLAIMS : "written from"
 
     QUESTIONS ||--|{ OPTIONS : "has exactly 4"
+    QUESTIONS ||--o{ QUESTION_FEEDBACK : "flagged for a reason"
 
     SKILLS {
         int id PK
@@ -88,6 +91,24 @@ erDiagram
         int is_correct
         int source_skill_id FK "null = model-generated"
     }
+    CLAIMS {
+        int id PK
+        int skill_id FK
+        int contrast_skill_id FK "the skill this claim is false of"
+        int card_id FK
+        string text
+        string model
+        string prompt_version
+        string created_at
+    }
+    QUESTION_FEEDBACK {
+        int id PK
+        int question_id FK
+        string target "question | explanation"
+        string reason
+        string note
+        string created_at
+    }
     REVIEWS {
         int id PK
         string item_type "card | question"
@@ -106,6 +127,14 @@ erDiagram
         int item_id
         string note
         string created_at
+    }
+    DAILY_SET_ITEMS {
+        int id PK
+        string set_date "local YYYY-MM-DD"
+        string item_type "card | question"
+        int item_id
+        int position
+        string completed_at "null until answered"
     }
     JOBS {
         int id PK
@@ -126,17 +155,20 @@ erDiagram
 
 ## Entities
 
-| Entity                  | What it is                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `SKILLS`                | The root entity. Everything else hangs off a skill.                           |
-| `SKILL_RELATIONS`       | The graph — the part of the product nothing else offers.                      |
-| `SOURCES`               | Provenance. Holds the extracted text the model actually saw.                  |
-| `CARDS`                 | Generated teaching text: a primer for one skill, or a comparison between two. |
-| `QUESTIONS` / `OPTIONS` | Generated assessment. Exactly four options, exactly one correct.              |
-| `REVIEWS`               | FSRS state per reviewed item.                                                 |
-| `FAVORITES`             | What the user chose to keep.                                                  |
-| `JOBS`                  | The durable queue driving all generation.                                     |
-| `SETTINGS`              | Key-value preferences.                                                        |
+| Entity                  | What it is                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `SKILLS`                | The root entity. Everything else hangs off a skill.                                                                  |
+| `SKILL_RELATIONS`       | The graph — the part of the product nothing else offers.                                                             |
+| `SOURCES`               | Provenance. Holds the extracted text the model actually saw.                                                         |
+| `CARDS`                 | Generated teaching text: a primer for one skill, or a comparison between two.                                        |
+| `QUESTIONS` / `OPTIONS` | Generated assessment. Exactly four options, exactly one correct.                                                     |
+| `CLAIMS`                | One statement, true of `skill_id` and false of `contrast_skill_id` — what questions borrow their wrong answers from. |
+| `QUESTION_FEEDBACK`     | Why the user flagged a question or its explanation.                                                                  |
+| `REVIEWS`               | FSRS state per reviewed item — an append-only log, one row per answer.                                               |
+| `DAILY_SET_ITEMS`       | Which ids belong to today's set, frozen once assembled.                                                              |
+| `FAVORITES`             | What the user chose to keep.                                                                                         |
+| `JOBS`                  | The durable queue driving all generation.                                                                            |
+| `SETTINGS`              | Key-value preferences.                                                                                               |
 
 ## Relationships
 
@@ -145,8 +177,11 @@ erDiagram
 - A **card** cites many sources, and a source may back many cards — hence `CARD_SOURCES`.
 - A **question** belongs to the card it was generated from, which is how an answer traces back to a source.
 - An **option** may point at the sibling skill its distractor came from; `NULL` marks a model-generated distractor.
-- `REVIEWS`, `FAVORITES`, `JOBS`, and `SETTINGS` reference items polymorphically or not at all, so they carry no
-  foreign keys — deliberate, so deleting a skill cannot cascade away review history or a saved favourite.
+- A **claim** points at two skills: `skill_id` (what it is true of) and `contrast_skill_id` (what it is false of, and
+  therefore safe to show as a wrong answer about).
+- `REVIEWS`, `DAILY_SET_ITEMS`, `FAVORITES`, `JOBS`, and `SETTINGS` reference items polymorphically or not at all, so
+  they carry no foreign keys — deliberate, so deleting a skill cannot cascade away review history or a saved
+  favourite.
 
 ## Invariants
 

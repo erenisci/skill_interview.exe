@@ -15,6 +15,7 @@ ADRs are **immutable except for their Status**. To change a decision, write a ne
 | [0004](0004-claim-based-questions.md) | Claim-based question assembly — distractors are neighbours' claims, gated before use         | Accepted | 2026-09-03 |
 | [0005](0005-feedback-as-eval-data.md) | Feedback is eval data, not training data                                                     | Accepted | 2026-09-03 |
 | [0006](0006-pairwise-claims.md)       | Pairwise claims, separated during generation — supersedes ADR-0004's gate                    | Accepted | 2026-09-03 |
+| [0007](0007-fsrs-scheduler.md)        | FSRS via `ts-fsrs`, long-term mode, two-point rating                                         | Accepted | 2026-09-03 |
 
 ## When to write one
 

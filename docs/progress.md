@@ -62,25 +62,32 @@ Writing the tests found a real defect: the generation job legitimately runs more
 finishing its research re-enqueues it — and the first version rebuilt the same questions from the same claims. It now
 skips any claim already asked about, including one whose question the user flagged.
 
+**M-5 is built.** The daily set — FR-40 through FR-44 — is assembled once per local day and frozen
+(`daily_set_items`), so reopening the app resumes the same set rather than reassembling around whatever just became
+due. Content is not frozen the same way: a question flagged after assembly still disappears, because the read path
+re-checks `questions.status` live for every id rather than trusting what was true at assembly time.
+
+Scheduling is [ADR-0007](architecture/adr/0007-fsrs-scheduler.md): FSRS via the `ts-fsrs` library rather than a hand
+port — a 21-weight algorithm across seven interdependent formulas is exactly the kind of specialist code this
+project has chosen not to reimplement elsewhere (search, extraction, constrained decoding), for the same reason —
+run in **long-term mode** (no Anki-style same-day learning steps, which nothing here needs) on a **two-point rating**
+rather than the library's usual four, because neither signal this product has is finer than binary: a question's
+outcome is correct-or-not, and a card carries no correctness at all. Four golden values were read once from the real
+dependency and pinned as regression tests, rather than hand-derived and risking validating the port against its own
+misunderstanding.
+
+The reminder (FR-44) is a plain OS notification at a configured time, not a persistent tray icon — no icon asset
+exists in the repository yet, and inventing a placeholder felt worse than the honest gap
+([TD-16](project/tech-debt.md)). `daily_cards`, `daily_questions` and `reminder_time` — TBD since M-2 — now have real
+defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
+
 ## In Progress
 
-- **M-4 works, and has not been read end to end in the app yet.** The first live run failed the milestone: the
-  separate discrimination gate left **1 of 28** borrowed claims standing and no question could be assembled. The
-  obvious hypothesis was wrong — more material changed nothing — and probing unambiguous cases found the real cause:
-  the gate rejects only where the material explicitly contradicts a claim, and material about one technology is
-  silent about nearly everything another one does.
-
-  Replaced by pairwise generation ([ADR-0006](architecture/adr/0006-pairwise-claims.md)): both technologies in view,
-  one call per pair, separation decided while writing rather than filtered afterwards. Re-measured on four reverse
-  proxies — the hardest case — **6 of 6 pairs separated and 4 of 4 skills became askable**.
-
-  Two smaller findings came from the same runs and are now code. A name used as the sentence's subject is stripped
-  rather than dropped: "nginx handles more than 10,000 connections" was the commonest way a correct claim arrived
-  unusable, and that is a prefix, not a flaw. And the explanation prompt may no longer refer to an option by
-  position, because options are shuffled after it writes — every explanation in the first good run said "the first
-  option describes…" and would have been wrong on screen.
-
-  What is left is reading them in the app. 203 tests.
+- **Neither M-4 nor M-5 has been read end to end in the app yet.** Both are built and covered by tests against
+  stubs or a temp database; neither has been watched running against a real model with real skills. M-4: do the
+  claims read as specific and the distractors as plausible. M-5: does a real daily set, on screen, feel like a
+  reason to open the app tomorrow. 252 tests pass either way — they cover assembly, scheduling, the reminder's
+  timing logic, and the transactional answer path, but none of them can answer either question.
 
 ## Done (recent)
 
@@ -108,6 +115,11 @@ skips any claim already asked about, including one whose question the user flagg
 | 2026-09-03 | Settled the truncation/`num_ctx` TBD — measured against real prompts and real articles, no overflow at 4096                |
 | 2026-09-03 | Wired `SKILL_INTERVIEW_DATA_DIR`; the resolved path is never logged, only whether it was overridden                        |
 | 2026-09-03 | Added CI (`.github/workflows/ci.yml`) — install, typecheck, lint, test, compile-only build on Windows runners              |
+| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating                 |
+| 2026-09-03 | M-5: daily-set assembly, frozen per local day, content re-checked live on every read                                       |
+| 2026-09-03 | M-5: the transactional answer path — schedule and mark-done together, or neither                                           |
+| 2026-09-03 | M-5: the reminder — pure timing logic plus the one `Notification` call, once-per-day gated                                 |
+| 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                     |
 
 ## Blocked
 
@@ -115,7 +127,10 @@ skips any claim already asked about, including one whose question the user flagg
 
 ## Next Up
 
-1. Add three or four related skills in the app and read the questions — the last M-4 check a probe cannot make
+1. Add a few related skills in the app and read both the day's questions (M-4) and the daily set (M-5) end to end —
+   the check a probe or a stubbed test cannot make for either
+2. M-6 — favourites with notes, Markdown export
+3. M-7 — eval harness, and the backlog it exists to settle: TD-11 through TD-14 plus the model-dependence question
 
 ## Open Decisions
 
@@ -139,3 +154,8 @@ skips any claim already asked about, including one whose question the user flagg
   them. They belong to the eval set rather than to another round of hand-tuning.
 - **Resolution treats packaging for a technology as the technology** ([TD-10](project/tech-debt.md)). Contained, not
   fixed: the card survives, the skill goes unclassified, nothing false is claimed. Belongs to the eval harness.
+- **Whether a two-point rating schedules as well as FSRS's usual four** ([TD-15](project/tech-debt.md)) is unmeasured
+  — a deliberate trade-off, since neither signal this product has is finer than binary, but untested against real
+  review patterns.
+- **The reminder has no persistent tray icon** ([TD-16](project/tech-debt.md)), only a plain notification — no icon
+  asset exists yet. Naturally M-8 work, once the installer needs one anyway.

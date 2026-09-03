@@ -181,3 +181,32 @@ own technology while the separation degrades. Quantity bought at the cost of the
 **Contained by.** The questions view says why there is nothing yet rather than showing an empty panel.
 **Remediation.** Revisit if a larger model yields more claims per pair — this is a good candidate for the
 two-model comparison in M-7, since it is one number that decides how the product feels on day one.
+
+### TD-15 — Cards and questions collapse to a two-point FSRS rating
+
+**What.** FSRS is built for a self-graded four-point scale (again/hard/good/easy). This product only ever sends
+`again` or `good`: a question's outcome is derived from correct/incorrect, and a card offers two buttons with the
+same two meanings. `hard` and `easy` are never produced.
+**Why it exists.** Neither signal this product actually has is finer than binary — there is no self-reported
+confidence step, by design ([ADR-0007](../architecture/adr/0007-fsrs-scheduler.md)).
+**Cost.** FSRS's weights were tuned expecting all four ratings to appear across real usage; running only the
+extremes is a supported configuration but an under-exercised one. Whether the resulting intervals are as good as a
+four-point signal would produce is unmeasured.
+**Contained by.** Nothing needed — this is a chosen trade-off, not a defect, and the wrapper already accepts any
+`ReviewRating`, so adding a third or fourth value later is a UI change, not a scheduler change.
+**Remediation.** Not urgent. If real use ever shows the daily set schedules items too aggressively or too loosely,
+this is the first place to look before touching the algorithm itself.
+
+### TD-16 — The reminder has no persistent tray icon
+
+**What.** FR-44 asks for "a tray notification"; this ships a plain OS `Notification` (a toast) at the configured
+time, not a persistent Windows system-tray icon with a menu.
+**Why it exists.** A real icon asset does not exist in this repository yet — no design pass has produced one — and
+Electron's `Notification` satisfies the acceptance criterion (a notification appears when the set is unfinished)
+without inventing a placeholder icon file to unblock a `Tray` instance that would otherwise show a blank glyph.
+**Cost.** No quick way to reopen the app from the tray without the reminder having fired first, and no persistent
+"is something due" indicator between reminders.
+**Contained by.** Clicking the notification focuses (or creates) the main window, so the one interaction FR-44
+actually asks for works.
+**Remediation.** Add a real `Tray` with an icon once the app has one — the same icon M-8's Windows installer needs,
+so this is naturally M-8 work rather than a separate pass.
