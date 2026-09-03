@@ -3,6 +3,7 @@ import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shar
 import { appError, err, ok } from '@shared/result';
 import type { AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
+import { RelationsRepository } from '../db/repositories/relations';
 import { checkLlmReadiness } from '../startup/readiness';
 import { normalizeSkillName, toSlug } from '../util/slug';
 import { log } from '../util/logger';
@@ -72,6 +73,17 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
     // Log the identifier, never the name — the skill list is the user's CV.
     log.info('ipc', 'skill added', { skillId: skill.id });
     return ok(skill);
+  });
+
+  handle(CHANNELS.skillsRelated, ctx, (skillId) => {
+    const related = [];
+    for (const relation of ctx.relations.listFor(skillId)) {
+      const otherId = RelationsRepository.otherSide(relation, skillId);
+      const skill = ctx.skills.findById(otherId);
+      // A relation whose other end is gone is stale, not an error worth surfacing.
+      if (skill) related.push({ skill, kind: relation.kind, strength: relation.strength });
+    }
+    return ok(related);
   });
 
   handle(CHANNELS.cardsForSkill, ctx, (skillId) =>

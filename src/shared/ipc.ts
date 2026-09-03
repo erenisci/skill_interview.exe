@@ -13,6 +13,7 @@ export const CHANNELS = {
   skillsAdd: 'skills:add',
   skillsRemove: 'skills:remove',
   cardsForSkill: 'cards:for-skill',
+  skillsRelated: 'skills:related',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 } as const;
@@ -29,6 +30,13 @@ export interface SettingsSetRequest {
   readonly value: string;
 }
 
+/** A neighbour in the skill graph, with how strongly it relates. */
+export interface RelatedSkill {
+  readonly skill: Skill;
+  readonly kind: string;
+  readonly strength: number;
+}
+
 /** A card never travels without its sources — the UI is required to show them (FR-12). */
 export interface CardWithSources {
   readonly card: Card;
@@ -42,6 +50,7 @@ export interface IpcContract {
   [CHANNELS.skillsAdd]: { request: AddSkillRequest; response: Result<Skill> };
   [CHANNELS.skillsRemove]: { request: number; response: Result<void> };
   [CHANNELS.cardsForSkill]: { request: number; response: Result<readonly CardWithSources[]> };
+  [CHANNELS.skillsRelated]: { request: number; response: Result<readonly RelatedSkill[]> };
   [CHANNELS.settingsGet]: { request: string; response: Result<string | null> };
   [CHANNELS.settingsSet]: { request: SettingsSetRequest; response: Result<void> };
 }

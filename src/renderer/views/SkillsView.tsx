@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ContentLanguage, Skill, SystemStatus } from '@shared/domain';
-import { CHANNELS, type CardWithSources } from '@shared/ipc';
+import { CHANNELS, type CardWithSources, type RelatedSkill } from '@shared/ipc';
 
 interface Props {
   readonly status: SystemStatus;
@@ -20,6 +20,7 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [cards, setCards] = useState<readonly CardWithSources[]>([]);
+  const [related, setRelated] = useState<readonly RelatedSkill[]>([]);
 
   const load = useCallback(async (cancelled?: () => boolean) => {
     const result = await window.api.invoke(CHANNELS.skillsList, undefined);
@@ -73,9 +74,14 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
     }
     setOpenId(skill.id);
     setCards([]);
-    const result = await window.api.invoke(CHANNELS.cardsForSkill, skill.id);
-    if (result.ok) setCards(result.value);
-    else setError(result.error.message);
+    setRelated([]);
+    const [cardResult, relatedResult] = await Promise.all([
+      window.api.invoke(CHANNELS.cardsForSkill, skill.id),
+      window.api.invoke(CHANNELS.skillsRelated, skill.id),
+    ]);
+    if (cardResult.ok) setCards(cardResult.value);
+    else setError(cardResult.error.message);
+    if (relatedResult.ok) setRelated(relatedResult.value);
   }
 
   return (
@@ -136,6 +142,18 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
 
                 {openId === skill.id && (
                   <div className="card">
+                    {related.length > 0 && (
+                      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                        Related —{' '}
+                        {related.map((r, i) => (
+                          <span key={r.skill.id}>
+                            {i > 0 && ' · '}
+                            {r.skill.name}
+                            <span style={{ opacity: 0.6 }}> {r.strength.toFixed(2)}</span>
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     {cards.length === 0 ? (
                       <p className="muted">Loading…</p>
                     ) : (
