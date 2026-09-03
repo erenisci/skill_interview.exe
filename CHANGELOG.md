@@ -20,6 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Research pipeline: adding a skill now searches GitHub, its declared documentation and Wikipedia, resolves which
   result is actually about that skill, and writes a grounded primer card stored with its source and licence.
 - Skills view shows a finished card with its sources, and follows a skill's progress while research runs.
+- Skill graph: research classifies each skill and links it to comparable neighbours, and a strongly related pair gets
+  a comparison card explaining what actually differs between them.
 
 ### Changed
 

@@ -38,9 +38,13 @@ Its parts:
   model it scored 5/5 on the collisions the precision probe found, **including all three whose right answer is
   "none"**. That was the riskiest assumption in ADR-0003.
 
+**M-3 is done.** Research now classifies each skill, recomputes its edges in the graph, and queues a comparison for
+every pair strong enough to earn one. Verified live: `nginx` and `Traefik` linked at 0.83 and produced a comparison
+naming concrete differences; `nginx` and `PostgreSQL` did not link. 144 tests.
+
 ## In Progress
 
-- Nothing in flight. M-3 (the skill graph) is next.
+- Nothing in flight. M-4 (questions) is next — the milestone the product lives or dies on.
 
 ## Done (recent)
 
@@ -65,7 +69,7 @@ Its parts:
 
 ## Next Up
 
-1. M-3 — classification into category and tags during research, then relation computation
+1. M-4 — question generation with sibling-skill distractors, structural validation, and the "bad question" flag
 2. Settle the truncation budget and `num_ctx` against real retrieved text; both are still provisional
 3. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
 4. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
@@ -82,3 +86,5 @@ Its parts:
   [TD-04](project/tech-debt.md) stays open longer than planned. Accepted for v1.
 - Whether constrained decoding costs prose quality. Unmeasured, and in scope for the eval harness.
 - Whether `num_gpu: 99` is safe on GPUs smaller than the reference machine's 4 GB. Configurable, but untested there.
+- **Resolution treats packaging for a technology as the technology** ([TD-10](project/tech-debt.md)). Contained, not
+  fixed: the card survives, the skill goes unclassified, nothing false is claimed. Belongs to the eval harness.

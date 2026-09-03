@@ -58,7 +58,14 @@ relation display and manual correction.
 **Depends on.** M-2.
 **Exit criteria.** `nginx` and `Traefik` are linked and produce a comparison card naming a concrete difference;
 `nginx` and `PostgreSQL` are not linked.
-**Status.** Not started.
+**Status.** **Done — 2026-09-03.** Both criteria met against real APIs and a real `qwen3:4b`. `nginx` and `Traefik`
+both classified `web-server` with matching tags, linked at strength 0.83, and produced a comparison naming concrete
+differences: static text configuration against dynamic discovery from an orchestrator, and when to reach for each.
+`nginx` and `PostgreSQL` were not linked.
+
+Carried forward: resolution sometimes picks packaging _for_ a technology over the technology itself
+([TD-10](tech-debt.md)). Contained rather than fixed — the card is kept, the skill is left unclassified, and no wrong
+claim is made — and it belongs in the eval sets rather than in more hand-tuning.
 
 ### M-4 — Questions that hold up
 

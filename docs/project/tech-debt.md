@@ -103,3 +103,20 @@ the design has to change for it — the model is a setting.
 **Why it exists.** `electron-vite@5` caps at `vite@7`, while the current `@vitejs/plugin-react` requires `vite@8`.
 **Cost.** A blind `npm update` breaks the install; the three packages move together or not at all.
 **Remediation.** Lift when `electron-vite` supports `vite@8`. Recorded in [../maintenance.md](../maintenance.md).
+
+### TD-10 — Resolution cannot tell a technology from the tooling around it
+
+**What.** Searching "PostgreSQL" returns Ansible roles and Chef cookbooks named `postgresql`, and resolution picks
+one roughly two runs in three. Measured 2026-09-03: one run chose Wikipedia's PostgreSQL article and classified it
+well (`database`, `relational`, `mvcc`, `replication`); two chose `ANXS/postgresql`, whose README is about installing
+PostgreSQL rather than what it is, and produced a single useless tag.
+**Why it exists.** Both gates were designed for the _wrong subject_ problem — Pompeii for Zustand. A deployment role
+genuinely is about the technology, so neither the name gate nor the subject check has grounds to reject it. The
+prompt now names this case explicitly, which helped but did not settle it.
+**Cost.** The card is written from packaging documentation rather than from the project, and the skill usually ends
+up unclassified, so it joins no comparisons. It is **not** a wrong claim — the card describes what the source says —
+but it answers the wrong question.
+**Contained by.** Classification failure no longer fails the job, so the outcome is a visible degradation rather
+than a lost card, and a tag equal to the skill's own name is now discarded.
+**Remediation.** These cases belong in `disambiguation.jsonl` so M-7 measures the fix instead of guessing at it.
+Prompt tuning by hand against three runs is how a fix gets believed without being verified.
