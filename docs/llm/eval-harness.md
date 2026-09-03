@@ -77,6 +77,21 @@ Each release records its scores here, so movement over time is visible.
 **Baselines are TBD until the first run.** They will be set from that run rather than guessed, then treated as the
 floor.
 
+### First signal, ahead of the harness
+
+`evals/probes/resolve-probe.mjs` ran the real `resolve-source` prompt against `qwen3:4b` on five collisions taken
+from the precision probe. **5/5 correct**, including all three cases whose right answer is "none": the ancient Tauri
+people, a Java interview guide offered for "Redis", and the TRPC ion channels.
+
+That is the riskiest assumption in [ADR-0003](../architecture/adr/0003-source-resolution.md) — that a small model
+will refuse rather than pick the least-wrong option — and it holds on this sample. Five hand-picked cases are not a
+baseline; they are a reason to keep going.
+
+One quality signal came with it: the _decisions_ were right while one _explanation_ contradicted itself mid-sentence
+("The technology is Taur… but the framework is named 'Tauri'"). Only the decision is used, so this costs nothing
+today. It joins the stray duplicated token seen during M-1 as evidence about 4B prose quality, which is what
+[TD-07](../project/tech-debt.md) is waiting on.
+
 ## What M-7 has to answer
 
 Three questions, not one. Each needs a different sweep of the same sets:

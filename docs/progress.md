@@ -29,10 +29,13 @@ GPU** — two settings found by measuring, both now in the adapter and documente
 - The **search adapters** — GitHub (repository plus its declared documentation), Wikipedia, and HTML/Markdown
   extraction. They return **candidates**, never sources: the text of a candidate is not even fetched until resolution
   has accepted it.
+- The **resolution stage** — the deterministic name gate plus the `resolve-source` model call. Against the real
+  model it scored 5/5 on the collisions the precision probe found, **including all three whose right answer is
+  "none"**. That was the riskiest assumption in ADR-0003.
 
 ## In Progress
 
-- M-2. The resolution stage is the next piece, and the one the product's honesty depends on.
+- M-2. Primer synthesis is next, then wiring the pipeline end to end.
 
 ## Done (recent)
 
@@ -51,6 +54,7 @@ GPU** — two settings found by measuring, both now in the adapter and documente
 | 2026-09-03 | M-2: durable job queue with retry, backoff surviving restarts, and model release on drain (21 tests)          |
 | 2026-09-03 | M-2: search adapters (GitHub, docs, Wikipedia) returning candidates, plus HTML/Markdown extraction            |
 | 2026-09-03 | Measured GitHub query strategies — `in:name` from ADR-0003 was wrong; plain relevance scores 7/7 against 6/7  |
+| 2026-09-03 | M-2: resolution stage — name gate calibrated against real names, subject check verified 5/5 on a real model   |
 
 ## Blocked
 
@@ -58,12 +62,11 @@ GPU** — two settings found by measuring, both now in the adapter and documente
 
 ## Next Up
 
-1. M-2 — the resolution stage: deterministic name gate, then the `resolve-source` model call ([ADR-0003](architecture/adr/0003-source-resolution.md))
-2. M-2 — the primer-card prompt and the synthesis stage
-3. M-2 — wire it end to end: adding a skill enqueues a research job, the handler runs the pipeline, sources and card are stored and shown
-4. M-2 — settle the truncation budget against real retrieved text, tuned together with `num_ctx`
-5. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
-6. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
+1. M-2 — the primer-card prompt and the synthesis stage
+2. M-2 — wire it end to end: adding a skill enqueues a research job, the handler runs the pipeline, sources and card are stored and shown
+3. M-2 — settle the truncation budget against real retrieved text, tuned together with `num_ctx`
+4. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
+5. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
 
 ## Open Decisions
 
