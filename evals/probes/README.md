@@ -12,9 +12,13 @@ taken on trust.
 | `precision-probe.mjs`    | Is the text about the **right subject**?                           | [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — the decision rests on this                     |
 | `github-query-probe.mjs` | Which GitHub query strategy resolves a name to the project itself? | The correction in [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — `in:name` did not survive it |
 
+| `resolve-probe.mjs` | Can a small local model answer "none"? | The second gate of [ADR-0003](../../docs/architecture/adr/0003-source-resolution.md) — 5/5, three of them refusals |
+
 ```bash
 node evals/probes/coverage-probe.mjs
 node evals/probes/precision-probe.mjs
+node evals/probes/github-query-probe.mjs
+node evals/probes/resolve-probe.mjs   # needs Ollama running
 ```
 
 Both hit public APIs unauthenticated and throttle accordingly; the coverage probe takes a few minutes. Wikipedia
