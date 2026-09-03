@@ -19,6 +19,21 @@ Each entry: date · decision · rationale · who decided.
 
 ---
 
+## 2026-09-03 — Thinking off, all layers forced onto the GPU
+
+**Decision.** Every generation request sends `think: false` and `options.num_gpu: 99`, alongside the explicit
+`num_ctx` the docs already required.
+**Rationale.** Both came from measuring the first real end-to-end run, which took **82.8 s** for a two-sentence card.
+`think: false` removed ~18 s per request of reasoning trace that never reaches the user (one uncontrolled run reached
+134 s); the model tasks here are not reasoning problems. `num_gpu: 99` fixed a 33% CPU offload that Ollama's own
+estimate had chosen while leaving 1.6 GB of a 4 GB card unused — lowering the context did not fix it and cost
+capability for nothing. Together: 82.8 s → **0.9 s warm, 100% GPU, full 4096 context**.
+**Cost, accepted.** Forcing the offload could fail to allocate on a GPU smaller than the reference machine's, so it
+is configurable and a failure surfaces as a configuration error rather than a silent slowdown.
+**Worth remembering.** The bottleneck that had been documented at length (GPU residency) was real but secondary. The
+dominant one was not on the list at all, and only appeared because the run was timed instead of assumed.
+**Decided by.** Author, after measurement — prompted by his insistence that partial CPU offload not be accepted.
+
 ## 2026-09-02 — One model, and it is the production one
 
 **Decision.** Install only `qwen3:4b` (~2.5 GB). It is both the development model and the recommended one,

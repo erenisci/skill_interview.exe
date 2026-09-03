@@ -20,11 +20,14 @@ No deadline. Solo pace, phase by phase. A milestone is done when its exit criter
 **Scope.** Electron + TypeScript + React scaffold; IPC boundary with `contextIsolation`; SQLite schema and migrations;
 `LlmAdapter` with the Ollama implementation; startup detection of Ollama and the model list.
 **Exit criteria.** The app launches, creates its database, lists installed models, and completes one round-trip prompt.
-**Status.** **Built, awaiting sign-off.** Launching, database creation, migrations, the sandboxed IPC boundary, the
-adapter layer, and the readiness check are done and covered by 32 tests, a clean typecheck and lint, and a working
-build. The last two exit criteria — listing installed models and one real round-trip prompt — are implemented and
-tested against a stubbed `fetch`, but have never run against a real Ollama; no model is installed yet. Ticked once
-they have.
+**Status.** **Done — 2026-09-03.** All four exit criteria verified against a real Ollama running `qwen3:4b`: the app
+launches, creates and migrates its database, lists installed models, and completes a round-trip generation whose
+constrained output parses. Model release via `keep_alive: 0` was verified too. 35 tests, clean typecheck, lint and
+build.
+
+Two settings were found by measuring rather than assuming, and both are now in the adapter: `think: false` and
+`num_gpu: 99`. Together they took one generation from 82.8 s to 0.9 s at 100% GPU
+([../operations/performance.md](../operations/performance.md)).
 
 ### M-2 — Research and primer cards
 

@@ -18,6 +18,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Changed
 
+- Generation requests now disable the model's reasoning trace and force every layer onto the GPU. Measured on a
+  4 GB laptop GPU, one generation went from 82.8 s to 0.9 s at full context.
+
 ### Fixed
 
 ### Removed

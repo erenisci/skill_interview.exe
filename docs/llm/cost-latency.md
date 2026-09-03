@@ -26,12 +26,17 @@ battery** — and the design spends them all in one place, on purpose.
 Retrieved text is truncated rather than summarized by an extra model call: a summarization pass would double the
 generation time and add a place for facts to be lost before the writer ever sees them.
 
-**The token budget is bounded by VRAM, not only by prompt length.** The KV cache grows with `num_ctx`, and on a 4 GB
-GPU holding a ~2.5 GB model there is little slack: raising the context to fit more source text is exactly what pushes
-layers onto the CPU and turns generation from seconds into minutes, silently. Truncation and `num_ctx` are tuned
-together — see [../operations/performance.md](../operations/performance.md).
+**The token budget is bounded by VRAM as well as by prompt length**, but less tightly than first assumed. The KV
+cache grows with `num_ctx`, and on a 4 GB card holding a ~2.5 GB model the slack is small. Measurement showed that
+forcing all layers onto the GPU (`num_gpu`) keeps a 4096 context fully resident at 3.2 GB, so the context does not
+have to be sacrificed for residency — which was the intuitive move and the wrong one. Flash attention and a
+quantized KV cache extend that headroom further, at the user's option
+([../operations/performance.md](../operations/performance.md)).
 
-Concrete token limits are TBD until measured on the target GPU — guessing them would put a fabricated number in a
+Measured per request on the reference machine: **~0.9 s warm, ~5.1 s cold** (4.0 s of that being the model load,
+which `keep_alive` amortizes across a job run).
+
+Concrete truncation limits are TBD until M-2 measures them against real retrieved text — guessing them would put a fabricated number in a
 doc that later reads as fact.
 
 ## Caching

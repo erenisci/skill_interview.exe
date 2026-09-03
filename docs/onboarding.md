@@ -30,7 +30,18 @@ it: [llm/architecture.md](llm/architecture.md).
 
 ```bash
 ollama run qwen3:4b "hi"
-ollama ps        # must report 100% GPU — any CPU share means it no longer fits
+ollama ps        # must report 100% GPU
+```
+
+The app forces full offload itself (`num_gpu`), so a plain `ollama run` may show a CPU share where the app does not —
+that is expected. What matters is what `ollama ps` reports while the app is generating.
+
+**Optional tuning.** Flash attention and a quantized KV cache cut the memory a given context costs, which buys
+headroom at larger contexts. They are Ollama _server_ settings, so the app cannot set them:
+
+```bash
+setx OLLAMA_FLASH_ATTENTION 1
+setx OLLAMA_KV_CACHE_TYPE q8_0   # restart Ollama afterwards
 ```
 
 The app also runs with **no model at all**: generation is stubbed and everything else — adding skills, storage, the

@@ -30,9 +30,31 @@ is loaded for a job and released when the queue drains ([../architecture/adr/000
 | Recommended | `qwen3:4b` (4B instruct, Q4, ~2.5 GB) — a working hypothesis, see below                                      |
 | Selection   | Read from Ollama's installed list; the user picks                                                            |
 | Structured  | JSON Schema sent as `format` on every request ([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) |
+| Thinking    | **`think: false` on every request** — see below; the largest latency factor in the pipeline                  |
+| Context     | `num_ctx` set explicitly by the adapter, never inherited from the runtime                                    |
+| Offload     | `num_gpu: 99` — forces every layer onto the GPU; the automatic split left 1.6 GB of VRAM unused              |
 | Residency   | `keep_alive` of a few minutes during a job run; `release()` sends `keep_alive: 0` when the queue drains      |
 | Concurrency | One job at a time — the model is both the bottleneck and the memory cost                                     |
 | Access      | Via `LlmAdapter`; only `src/main/llm/ollama.ts` knows Ollama exists                                          |
+
+### Thinking is off, and this was the biggest surprise
+
+qwen3 is a hybrid reasoning model: left to itself it generates a reasoning trace before the answer. Measured on the
+reference machine, same prompt, same schema, warm model:
+
+|                | Total      | Generation | Output    |
+| -------------- | ---------- | ---------- | --------- |
+| `think: false` | **1.6 s**  | 1.5 s      | 43 tokens |
+| thinking on    | **19.6 s** | 2.0 s      | 55 tokens |
+
+The generation time is identical. The ~18 s difference is entirely a reasoning trace the user never sees, and an
+earlier uncontrolled run reached **134 s** — so the cost is both large and variable.
+
+None of this product's model tasks benefit from it. Writing prose from supplied text, classifying into a category,
+and picking the right candidate from a short list are not reasoning problems; the material is already in the prompt.
+
+This turned out to matter far more than GPU residency, which had been the assumed bottleneck. It is worth stating
+plainly: **the thing that was measured and the thing that was worried about were not the same thing.**
 
 ### Model residency is the memory design
 

@@ -2,7 +2,7 @@
 title: Progress
 discipline: project
 status: active
-updated: 2026-09-02
+updated: 2026-09-03
 ---
 
 # Progress
@@ -12,56 +12,56 @@ updated: 2026-09-02
 
 ## Current Status
 
-**M-1 built, partly unverified.** The application exists and runs: it launches, creates its database, applies
-migrations, and serves the skills view over a sandboxed IPC boundary. Storage, the adapter layer, and the startup
-readiness check are in place, with 32 tests, a clean typecheck, a clean lint, and a working build.
+**M-1 done and verified against a real model.** The app launches, creates and migrates its database, serves the
+skills view over a sandboxed IPC boundary, lists installed Ollama models, and completes a round-trip generation whose
+schema-constrained output parses. Releasing the model with `keep_alive: 0` was verified as well, so the memory design
+is proven rather than asserted. 35 tests, clean typecheck, lint and build.
 
-Two of M-1's exit criteria — listing installed models and completing one round-trip prompt — are implemented and
-covered by tests against a stubbed `fetch`, but have **never run against a real Ollama**. No model is installed on
-the development machine yet. M-1 is not ticked until they do.
+The first honest end-to-end measurement took **82.8 s** for a two-sentence card. It now takes **0.9 s warm, at 100%
+GPU** — two settings found by measuring, both now in the adapter and documented in
+[operations/performance.md](operations/performance.md).
 
 ## In Progress
 
-- Nothing actively in flight.
+- Nothing actively in flight. M-2 is next.
 
 ## Done (recent)
 
 | Date       | What                                                                                                          |
 | ---------- | ------------------------------------------------------------------------------------------------------------- |
-| 2026-09-02 | Project brief completed; scope narrowed to technical skills, Electron over Rust/Tauri, MIT, Windows-only      |
 | 2026-09-02 | Documentation set and Acta brain generated (`/acta:build`)                                                    |
 | 2026-09-02 | M-1: Electron + TypeScript + React scaffold; sandboxed renderer; typed IPC returning `Result`                 |
 | 2026-09-02 | M-1: SQLite schema, forward-only migrations, repositories for skills / settings / jobs                        |
-| 2026-09-02 | M-1: `LlmAdapter` with Ollama and stub implementations; `keep_alive` release and constrained decoding         |
-| 2026-09-02 | M-1: startup readiness check distinguishing missing runtime, missing model, and removed model                 |
+| 2026-09-02 | M-1: `LlmAdapter` with Ollama and stub implementations                                                        |
 | 2026-09-02 | [ADR-0002](architecture/adr/0002-constrained-decoding.md) — JSON Schema at the runtime, plus a parse          |
 | 2026-09-02 | Search coverage + precision probes (`evals/probes/`) — naive search grounds to the wrong subject              |
 | 2026-09-02 | [ADR-0003](architecture/adr/0003-source-resolution.md) — resolution gates; GitHub primary, DuckDuckGo dropped |
+| 2026-09-02 | Repository made ready for public release; brief archive and Acta registry excluded                            |
+| 2026-09-03 | `think: false` and `num_gpu: 99` added to the adapter after measurement — 82.8 s → 0.9 s, 100% GPU            |
+| 2026-09-03 | **M-1 signed off** — all four exit criteria verified against a real `qwen3:4b`                                |
 
 ## Blocked
 
-- **M-1 sign-off needs a local model.** `listModels()` and one real generation round-trip cannot be verified until
-  Ollama is installed and a model pulled. Everything else in M-1 is done.
-  Plan: **one model, `qwen3:4b`** — development and production are deliberately the same, and it fits the 4 GB VRAM
-  on this machine entirely. First check after pulling is `ollama ps` reporting `100% GPU`; a CPU share means
-  generation has silently become minutes-long ([operations/performance.md](operations/performance.md)).
+- Nothing.
 
 ## Next Up
 
-1. Verify M-1's two remaining exit criteria against a real Ollama, then tick M-1 in [project/roadmap.md](project/roadmap.md)
-2. M-2 — `SearchAdapter` (GitHub `in:name`, official docs, Wikipedia) and the resolution stage ([ADR-0003](architecture/adr/0003-source-resolution.md))
-3. M-2 — the durable job queue loop: claim, retry, terminal failure, and releasing the model when it drains
-4. M-2 — the primer-card prompt and the synthesis stage, with sources stored and shown
-5. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
-6. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
+1. M-2 — the durable job queue loop: claim, retry, terminal failure, and releasing the model when it drains
+2. M-2 — `SearchAdapter` (GitHub `in:name`, official docs, Wikipedia)
+3. M-2 — the resolution stage: deterministic name gate, then the `resolve-source` model call ([ADR-0003](architecture/adr/0003-source-resolution.md))
+4. M-2 — HTML→text extraction and the truncation budget, tuned together with `num_ctx`
+5. M-2 — the primer-card prompt and the synthesis stage, with sources stored and shown
+6. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
+7. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
 
 ## Open Decisions
 
 - **`qwen3:4b` is the recommended model, as a hypothesis.** One model is installed, and development and production
   deliberately share it. Nothing has yet shown it clears the quality bar; the eval harness exists to falsify it, and
-  the falsifying conditions are written down in [llm/architecture.md](llm/architecture.md) ([TD-07](project/tech-debt.md)).
+  the falsifying conditions are in [llm/architecture.md](llm/architecture.md) ([TD-07](project/tech-debt.md)).
+  First small signal: one generated sentence contained a stray duplicated token. Not blocking, but exactly what the
+  eval sets are for.
 - **Cross-family prompt variance is unmeasurable with one model** ([TD-09](project/tech-debt.md)), so
   [TD-04](project/tech-debt.md) stays open longer than planned. Accepted for v1.
-- Supported-model allowlist versus per-model prompt variants — narrowed by [ADR-0002](architecture/adr/0002-constrained-decoding.md),
-  which makes schema conformance a runtime guarantee; what remains model-dependent is content quality.
-- Whether constrained decoding costs prose quality. Unmeasured, and now in scope for the eval harness.
+- Whether constrained decoding costs prose quality. Unmeasured, and in scope for the eval harness.
+- Whether `num_gpu: 99` is safe on GPUs smaller than the reference machine's 4 GB. Configurable, but untested there.
