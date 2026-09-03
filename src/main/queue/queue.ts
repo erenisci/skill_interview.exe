@@ -15,6 +15,12 @@ export interface QueueDeps {
   /** Only `release` is used: the queue's job is to free the model, not to call it. */
   readonly llm: Pick<LlmAdapter, 'release'>;
   readonly handlers: ReadonlyMap<JobKind, JobHandler>;
+  /**
+   * Called when a job gives up for good. A handler cannot do this itself — it does not
+   * know whether the queue will retry — and the domain state it owns (a skill stuck in
+   * `researching`) would otherwise never be corrected.
+   */
+  readonly onJobFailed?: (job: Job, error: AppError) => void;
 }
 
 export interface QueueOptions {
@@ -157,6 +163,13 @@ export class JobQueue {
   private fail(job: Job, error: AppError, note?: string): void {
     const message = note ? `${error.message} (${note})` : error.message;
     this.deps.jobs.finish(job.id, 'failed', this.iso(), message);
+    try {
+      this.deps.onJobFailed?.(job, error);
+    } catch (cause) {
+      // A broken cleanup hook must not stop the queue reporting the original failure.
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      log.error('queue', 'failure hook threw', { jobId: job.id, detail });
+    }
     // The identifier and the reason, never the payload — a job payload names a skill.
     log.error('queue', 'job failed', {
       jobId: job.id,
