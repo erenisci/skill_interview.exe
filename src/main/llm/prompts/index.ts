@@ -1,5 +1,7 @@
 import resolveSourceV1 from './resolve-source.v1.md?raw';
 import primerCardV1 from './primer-card.v1.md?raw';
+import classifySkillV1 from './classify-skill.v1.md?raw';
+import comparisonCardV1 from './comparison-card.v1.md?raw';
 
 /**
  * Prompts are product code: a prompt edit changes user-visible output without changing a
@@ -19,6 +21,16 @@ export const RESOLVE_SOURCE: Prompt = {
 export const PRIMER_CARD: Prompt = {
   version: 'primer-card.v1',
   template: primerCardV1,
+};
+
+export const CLASSIFY_SKILL: Prompt = {
+  version: 'classify-skill.v1',
+  template: classifySkillV1,
+};
+
+export const COMPARISON_CARD: Prompt = {
+  version: 'comparison-card.v1',
+  template: comparisonCardV1,
 };
 
 /** Language names rather than codes: a model follows "Turkish" better than "tr". */
