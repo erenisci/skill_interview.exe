@@ -1,4 +1,5 @@
 import resolveSourceV1 from './resolve-source.v1.md?raw';
+import primerCardV1 from './primer-card.v1.md?raw';
 
 /**
  * Prompts are product code: a prompt edit changes user-visible output without changing a
@@ -13,6 +14,17 @@ export interface Prompt {
 export const RESOLVE_SOURCE: Prompt = {
   version: 'resolve-source.v1',
   template: resolveSourceV1,
+};
+
+export const PRIMER_CARD: Prompt = {
+  version: 'primer-card.v1',
+  template: primerCardV1,
+};
+
+/** Language names rather than codes: a model follows "Turkish" better than "tr". */
+export const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  en: 'English',
+  tr: 'Turkish',
 };
 
 /** Fills `{{NAME}}` placeholders. Values are data; nothing in them is re-scanned. */
