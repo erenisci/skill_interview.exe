@@ -53,6 +53,29 @@ describe('OllamaLlmAdapter.generate', () => {
     expect(calls[0]?.body?.['keep_alive']).toBe('5m');
   });
 
+  it('disables thinking — measured at 1.6s versus 19.6s for identical output', async () => {
+    const calls = stubFetch(() => chatReply(JSON.stringify({ title: 't', body: 'b' })));
+    await adapter().generate({ system: 's', prompt: 'p', schema: CARD });
+    expect(calls[0]?.body?.['think']).toBe(false);
+  });
+
+  it('forces every layer onto the GPU — the automatic split left 1.6 GB of VRAM unused', async () => {
+    const calls = stubFetch(() => chatReply(JSON.stringify({ title: 't', body: 'b' })));
+    await adapter().generate({ system: 's', prompt: 'p', schema: CARD });
+    expect(calls[0]?.body?.['options']).toEqual({ num_ctx: 4096, num_gpu: 99 });
+  });
+
+  it('lets both context and offload be lowered for a smaller GPU', async () => {
+    const calls = stubFetch(() => chatReply(JSON.stringify({ title: 't', body: 'b' })));
+    await new OllamaLlmAdapter({
+      url: 'http://localhost:11434',
+      model: 'qwen3:4b',
+      numCtx: 2048,
+      numGpu: 20,
+    }).generate({ system: 's', prompt: 'p', schema: CARD });
+    expect(calls[0]?.body?.['options']).toEqual({ num_ctx: 2048, num_gpu: 20 });
+  });
+
   it('treats prose where JSON was expected as a validation failure, not a partial success', async () => {
     stubFetch(() => chatReply('Sure! Here is the card you asked for.'));
     const result = await adapter().generate({ system: 's', prompt: 'p', schema: CARD });

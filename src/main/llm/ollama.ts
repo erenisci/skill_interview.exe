@@ -5,19 +5,47 @@ import type { GenerationOutput, GenerationRequest, LlmAdapter } from './adapter'
 /**
  * The only file that knows Ollama exists.
  *
- * Two behaviours here are load-bearing, not details:
+ * Three behaviours here are load-bearing, not details:
  *
- * 1. `keep_alive` — Ollama keeps a model resident for ~5 minutes after a request.
- *    Generation passes a short window so consecutive jobs reuse the loaded weights;
- *    `release()` passes 0 to evict it when the queue drains. On a 4 GB laptop GPU an
- *    8B model is most of the card, so this is the memory design in practice.
+ * 1. `think: false` — qwen3 is a hybrid reasoning model and thinks by default. Measured
+ *    on the reference machine, the same request took 1.6 s without thinking and 19.6 s
+ *    with it, for identical output; a worse case reached 134 s. The reasoning trace never
+ *    reaches the user, and none of this product's tasks — write from supplied text,
+ *    classify, pick a candidate — benefit from it. This is the single largest latency
+ *    factor in the pipeline, larger than partial GPU offload.
  *
- * 2. `format` — a JSON Schema is sent with every request, so the runtime constrains
+ * 2. `keep_alive` — Ollama keeps a model resident for ~5 minutes after a request.
+ *    Generation passes a short window so consecutive jobs reuse the loaded weights
+ *    (a cold load costs ~5.7 s, a warm one nothing); `release()` passes 0 to evict it
+ *    when the queue drains.
+ *
+ * 3. `format` — a JSON Schema is sent with every request, so the runtime constrains
  *    decoding to valid output. That makes schema conformance a runtime guarantee
  *    instead of something each model's prompt-following has to earn.
  */
 
 const DEFAULT_TIMEOUT_MS = 300_000;
+
+/**
+ * Set explicitly rather than left to the runtime, because the context window is a VRAM
+ * decision as much as a prompt one. The real budget lands with retrieval truncation in
+ * M-2; until then this is Ollama's own default, stated rather than inherited.
+ */
+const DEFAULT_NUM_CTX = 4096;
+
+/**
+ * Force every layer onto the GPU.
+ *
+ * Ollama's automatic split is conservative: measured on the reference machine it put the
+ * model at 27% CPU / 73% GPU while leaving 1.6 GB of the 4 GB card unused. Asking for
+ * more layers than the model has pins all of them, which measured 100% GPU at 2.9 GB —
+ * full context and full offload at once.
+ *
+ * The risk is a smaller GPU than the reference one, where forcing the split could fail
+ * to allocate. It is therefore configurable, and a failure surfaces as a normal
+ * configuration error rather than silently degrading.
+ */
+const DEFAULT_NUM_GPU = 99;
 
 interface OllamaTagsResponse {
   models?: { name?: unknown }[];
@@ -34,6 +62,10 @@ export interface OllamaConfig {
   /** How long Ollama keeps the model resident between requests within a job run. */
   readonly keepAlive?: string;
   readonly timeoutMs?: number;
+  /** Context window. Bounded by VRAM, not only by prompt length. */
+  readonly numCtx?: number;
+  /** Layers to offload. Defaults to forcing all of them; lower it for a smaller GPU. */
+  readonly numGpu?: number;
 }
 
 export class OllamaLlmAdapter implements LlmAdapter {
@@ -43,12 +75,16 @@ export class OllamaLlmAdapter implements LlmAdapter {
   private readonly model: string;
   private readonly keepAlive: string;
   private readonly timeoutMs: number;
+  private readonly numCtx: number;
+  private readonly numGpu: number;
 
   constructor(config: OllamaConfig) {
     this.url = config.url.replace(/\/+$/, '');
     this.model = config.model;
     this.keepAlive = config.keepAlive ?? '5m';
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.numCtx = config.numCtx ?? DEFAULT_NUM_CTX;
+    this.numGpu = config.numGpu ?? DEFAULT_NUM_GPU;
   }
 
   async listModels(): Promise<Result<readonly string[]>> {
@@ -68,8 +104,10 @@ export class OllamaLlmAdapter implements LlmAdapter {
       {
         model: this.model,
         stream: false,
+        think: false,
         keep_alive: this.keepAlive,
         format: request.schema.jsonSchema,
+        options: { num_ctx: this.numCtx, num_gpu: this.numGpu },
         messages: [
           { role: 'system', content: request.system },
           { role: 'user', content: request.prompt },
