@@ -89,13 +89,13 @@ changes.
 
 ### TD-09 — One model installed, so cross-family variance is unmeasurable
 
-**What.** Only `qwen3:4b` is installed, by choice — disk space, and the model in development is deliberately the one
-in production.
-**Why it exists.** A second model costs another 2.5–5 GB to answer a question that does not block v1.
+**What.** Only `qwen3:4b` is installed, by choice: the model in development is deliberately the one in production.
+**Why it exists.** A second model answers a question that does not block v1. Note this is **not** a disk constraint —
+the development machine has 585 GB free — it is a decision to keep dev and production identical.
 **Cost.** [TD-04](#td-04--prompts-are-tuned-against-one-model) cannot be closed. The allowlist-versus-variants
 decision stays open, and prompt fragility across model families stays unmeasured.
-**Remediation.** Pull a second family (`gemma3:4b`) when distribution matters, or when a user reports output that
-looks like a product bug on a model we never tried.
+**Remediation.** Cheap whenever it matters: pull a second family (`gemma3:4b`) and re-run the eval sets. Nothing in
+the design has to change for it — the model is a setting.
 
 ### TD-08 — Toolchain pinned by a peer-dependency conflict
 

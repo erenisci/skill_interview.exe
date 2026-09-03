@@ -24,11 +24,13 @@ Each entry: date · decision · rationale · who decided.
 **Decision.** Install only `qwen3:4b` (~2.5 GB). It is both the development model and the recommended one,
 superseding the earlier split of "4B for development, 8B for quality". The model must also run **fully on the GPU**,
 which makes the context budget a performance constraint rather than only a prompt one.
-**Rationale.** Disk and VRAM: an 8B Q4 needs ~5 GB and does not fit the 4 GB laptop GPU, so it would spill onto the
-CPU — on the author's machine and on a large share of users'. Building against a model neither party can run well is
-how quality decisions get made on imaginary hardware. Two reasons for a larger model are already gone: schema
-conformance moved to the runtime ([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) and distractor
-assembly moved into code.
+**Rationale.** VRAM, and only VRAM. The development machine was measured rather than assumed: RTX 3050 Ti Laptop
+with 4096 MiB, 15.8 GB system RAM, 585 GB free disk. **Disk is not a constraint and was wrongly cited as one** in an
+earlier draft of this entry. An 8B Q4 is ~4.7–4.9 GB of weights before any KV cache, so it cannot fit 4096 MiB and
+spills onto the CPU — on this machine and on the large share of users with the same class of GPU. Building against a
+model neither party can run well is how quality decisions get made on imaginary hardware. Two reasons for a larger
+model are already gone: schema conformance moved to the runtime
+([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) and distractor assembly moved into code.
 **Cost, accepted.** Cross-family variance becomes unmeasurable ([TD-09](../project/tech-debt.md)), so
 [TD-04](../project/tech-debt.md) stays open; and 4B clearing the quality bar is a hypothesis, not a result
 ([TD-07](../project/tech-debt.md)).
