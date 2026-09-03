@@ -31,18 +31,19 @@ skill_interview.exe/
 │   │   │   ├── schema.ts      # zod → JSON Schema + parse, from one source
 │   │   │   ├── ollama.ts      # the only file that knows Ollama exists
 │   │   │   ├── stub.ts        # model-free adapter for tests and dev
-│   │   │   └── prompts/       # (M-2) prompt templates, versioned
+│   │   │   └── prompts/       # prompt templates, versioned in the filename
 │   │   ├── startup/           # readiness check: runtime, model list, selection
 │   │   ├── util/              # slug normalization, structured logger
 │   │   ├── queue/             # durable job loop: claim, retry, backoff, model release
 │   │   ├── search/            # (M-2) SearchAdapter, github, docs, wikipedia, extract
-│   │   ├── pipeline/          # (M-2) retrieve → extract → synthesize → classify → relate → generate → validate
+│   │   ├── pipeline/          # retrieve → extract → synthesize → classify → relate → claims → assemble → validate
+│   │   │                      #   question-validate.ts is pure: no model, no db, no clock
 │   │   ├── scheduler/         # (M-5) FSRS state and daily-set assembly
 │   │   ├── notify/            # (M-5) tray icon and reminders
 │   │   └── export/            # (M-6) favourites → Markdown
 │   ├── renderer/              # React UI — no DB, no network, no Node
 │   │   ├── App.tsx
-│   │   ├── views/             # setup · skills (daily set, favourites, settings later)
+│   │   ├── views/             # setup · skills · questions (daily set, favourites, settings later)
 │   │   └── styles/
 │   ├── preload/               # contextBridge surface, nothing else
 │   └── shared/                # types crossing the IPC boundary; no runtime deps

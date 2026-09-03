@@ -120,3 +120,33 @@ but it answers the wrong question.
 than a lost card, and a tag equal to the skill's own name is now discarded.
 **Remediation.** These cases belong in `disambiguation.jsonl` so M-7 measures the fix instead of guessing at it.
 Prompt tuning by hand against three runs is how a fix gets believed without being verified.
+
+### TD-11 — The question quality thresholds are guesses
+
+**What.** Three numbers gate whether a generated question reaches the user, and none has been checked against real
+output: `MAX_LENGTH_RATIO` (2.5) in the structural validator, the 4–8 claim band asked of the claim prompt, and
+`TARGET_QUESTIONS` (5) per skill.
+**Why it exists.** They were needed before there was any generated corpus to calibrate against, exactly as the
+primer's `MIN_BODY_CHARS` was. Picking a plausible number and labelling it provisional was preferable to blocking
+M-4 on data that does not exist yet.
+**Cost.** A ratio set too tight silently drops usable questions; too loose and the oldest multiple-choice tell —
+the correct option being the long careful one — survives into the product. Neither shows up as a failure.
+**Contained by.** Every dropped candidate logs why, so the drop reasons are recoverable from the logs rather than
+lost.
+**Remediation.** Calibrate against a corpus in M-7, the way the name gate was calibrated against a table of
+must-pass and must-fail pairs. Tuning these by hand until the output looks good is the mistake ADR-0003's correction
+already records.
+
+### TD-12 — The discrimination gate's drop rate is unmeasured
+
+**What.** Every borrowed claim must be judged clearly false of the target skill before it may be a distractor, and
+the prompt deliberately rejects on uncertainty. How often that discards a usable claim is unknown.
+**Why it exists.** The asymmetry is intentional — a lost distractor costs one option, an ambiguous one costs the
+reader's trust — but "correctly strict" and "so strict that nothing survives" produce the same visible outcome: no
+questions.
+**Cost.** On a small skill graph the gate could starve question generation entirely, and the app would look like it
+simply has not finished working rather than like it rejected everything.
+**Contained by.** `too-few-distractors` is logged per dropped candidate, so the starvation case is at least
+diagnosable after the fact.
+**Remediation.** Measure the survival rate on a real skill list in M-7 before touching the prompt. If it is too low,
+the fix is more likely to be a larger pool — more neighbours — than a laxer gate.

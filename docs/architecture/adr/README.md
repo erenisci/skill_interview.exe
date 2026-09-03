@@ -7,11 +7,13 @@ ADRs are **immutable except for their Status**. To change a decision, write a ne
 
 ## Index
 
-| ADR                                  | Title                                                                                        | Status   | Date       |
-| ------------------------------------ | -------------------------------------------------------------------------------------------- | -------- | ---------- |
-| [0001](0001-initial-architecture.md) | Initial architecture — Electron + TypeScript, local-first, generation split from consumption | Accepted | 2026-09-02 |
-| [0002](0002-constrained-decoding.md) | Constrained decoding for structured output — JSON Schema at the runtime, plus a parse        | Accepted | 2026-09-02 |
-| [0003](0003-source-resolution.md)    | Source resolution — a search result is a candidate, never a source                           | Accepted | 2026-09-02 |
+| ADR                                   | Title                                                                                        | Status   | Date       |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- | -------- | ---------- |
+| [0001](0001-initial-architecture.md)  | Initial architecture — Electron + TypeScript, local-first, generation split from consumption | Accepted | 2026-09-02 |
+| [0002](0002-constrained-decoding.md)  | Constrained decoding for structured output — JSON Schema at the runtime, plus a parse        | Accepted | 2026-09-02 |
+| [0003](0003-source-resolution.md)     | Source resolution — a search result is a candidate, never a source                           | Accepted | 2026-09-02 |
+| [0004](0004-claim-based-questions.md) | Claim-based question assembly — distractors are neighbours' claims, gated before use         | Accepted | 2026-09-03 |
+| [0005](0005-feedback-as-eval-data.md) | Feedback is eval data, not training data                                                     | Accepted | 2026-09-03 |
 
 ## When to write one
 

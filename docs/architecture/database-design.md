@@ -27,13 +27,13 @@ Set on every open, in `src/main/db/index.ts`. None of them are defaults, and eac
 
 Five groups of tables:
 
-| Group      | Tables                          | Role                                              |
-| ---------- | ------------------------------- | ------------------------------------------------- |
-| Knowledge  | `skills`, `skill_relations`     | What the user claims to know, and how it connects |
-| Provenance | `sources`, `card_sources`       | Where every generated claim came from             |
-| Content    | `cards`, `questions`, `options` | The generated material                            |
-| Learning   | `reviews`, `favorites`          | What the user has done with it                    |
-| Machinery  | `jobs`, `settings`              | Background work and preferences                   |
+| Group      | Tables                                      | Role                                              |
+| ---------- | ------------------------------------------- | ------------------------------------------------- |
+| Knowledge  | `skills`, `skill_relations`                 | What the user claims to know, and how it connects |
+| Provenance | `sources`, `card_sources`                   | Where every generated claim came from             |
+| Content    | `cards`, `questions`, `options`, `claims`   | The generated material                            |
+| Learning   | `reviews`, `favorites`, `question_feedback` | What the user has done with it                    |
+| Machinery  | `jobs`, `settings`                          | Background work and preferences                   |
 
 Two rules shape the whole schema:
 
@@ -114,6 +114,39 @@ PK `(skill_a_id, skill_b_id)`. Recomputed when a skill is added, deleted, or rec
 
 `source_skill_id` is what lets the eval harness measure whether sibling distractors beat model-generated ones.
 
+### `claims`
+
+One atomic statement about a skill, written from its primer card, that never names its own technology. Claims are
+what questions are assembled from: the correct option is a claim about the skill being asked about, and the
+distractors are claims belonging to its neighbours ([adr/0004-claim-based-questions.md](adr/0004-claim-based-questions.md)).
+
+| Column                    | Type       | Notes                                                    |
+| ------------------------- | ---------- | -------------------------------------------------------- |
+| `id`                      | INTEGER PK |                                                          |
+| `skill_id`, `card_id`     | INTEGER FK | The card is the material the claim was drawn from        |
+| `text`                    | TEXT       | One sentence. Naming its own technology is a code defect |
+| `model`, `prompt_version` | TEXT       |                                                          |
+| `created_at`              | TEXT       |                                                          |
+
+They are stored rather than generated per question because a claim written for Traefik is exactly what makes an nginx
+question hard — regenerating it for every neighbour would turn an N cost into N×N.
+
+### `question_feedback`
+
+| Column        | Type       | Notes                                                      |
+| ------------- | ---------- | ---------------------------------------------------------- |
+| `id`          | INTEGER PK |                                                            |
+| `question_id` | INTEGER FK |                                                            |
+| `target`      | TEXT       | `question` · `explanation` — different defects, kept apart |
+| `reason`      | TEXT       | The reason code; see the enum in the migration             |
+| `note`        | TEXT NULL  | The user's own words. Never logged                         |
+| `created_at`  | TEXT       |                                                            |
+
+The reason is not optional, and that is the whole design. A bare thumbs-down cannot be acted on: two correct options
+is a missing validator rule, implausible options are an assembly problem, and a wandering explanation is a prompt
+problem ([adr/0005-feedback-as-eval-data.md](adr/0005-feedback-as-eval-data.md)). Joined against
+`questions.prompt_version`, these rows are what make one prompt version comparable with another.
+
 ### `reviews`
 
 | Column                    | Type       | Notes               |
@@ -152,6 +185,9 @@ clears it only for jobs it actually resets; a job already waiting out a backoff 
 | `jobs(status, retry_at, created_at)`  | Queue pickup, skipping jobs still backing off |
 | `cards(skill_id, type)`               | Card lookup per skill                         |
 | `options(question_id)`                | Always fetched with its question              |
+| `questions(skill_id, status)`         | The read path never pays for flagged rows     |
+| `claims(skill_id)`                    | The distractor pool, fetched per neighbour    |
+| `question_feedback(question_id)`      | Flag counts per question                      |
 | FTS5 over `cards(title, body_md)`     | User-facing search                            |
 
 ## Migrations

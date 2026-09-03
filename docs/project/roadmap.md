@@ -75,7 +75,10 @@ the user's "bad question" flag.
 **Depends on.** M-3 — distractors need the graph.
 **Exit criteria.** Generated questions pass validation, at least one distractor per related question traces to a
 sibling skill, and the flag path works end to end.
-**Status.** Not started. **This is the milestone the product lives or dies on.**
+**Status.** Built, awaiting a live run. Assembly, validation and the flag path are covered by 44 tests against a stub
+adapter; what a stub cannot answer is whether the questions are good. See
+[ADR-0004](../architecture/adr/0004-claim-based-questions.md) and
+[ADR-0005](../architecture/adr/0005-feedback-as-eval-data.md).
 
 ### M-5 — The daily loop
 
