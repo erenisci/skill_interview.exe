@@ -76,6 +76,10 @@ export class SkillsRepository {
     return created;
   }
 
+  setStatus(id: number, status: SkillStatus): void {
+    this.db.prepare('UPDATE skills SET status = ? WHERE id = ?').run(status, id);
+  }
+
   remove(id: number): boolean {
     return this.db.prepare('DELETE FROM skills WHERE id = ?').run(id).changes > 0;
   }

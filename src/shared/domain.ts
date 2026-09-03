@@ -19,6 +19,19 @@ export interface Skill {
   readonly createdAt: string;
 }
 
+export interface Source {
+  readonly id: number;
+  readonly skillId: number;
+  readonly url: string;
+  readonly title: string;
+  readonly publisher: string | null;
+  /** Needed for attribution: Wikipedia-derived text is CC BY-SA. */
+  readonly license: string | null;
+  readonly fetchedAt: string;
+  /** The text the model actually saw — what makes "grounded or invented?" answerable. */
+  readonly excerpt: string;
+}
+
 export type CardType = 'primer' | 'comparison';
 
 export interface Card {
