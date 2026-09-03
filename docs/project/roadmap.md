@@ -75,11 +75,11 @@ the user's "bad question" flag.
 **Depends on.** M-3 — distractors need the graph.
 **Exit criteria.** Generated questions pass validation, at least one distractor per related question traces to a
 sibling skill, and the flag path works end to end.
-**Status.** Built, and blocked on quality. Assembly, validation and the flag path work and are covered by 44 tests.
-The live run then failed the milestone: the discrimination gate left 1 of 28 borrowed claims standing, so no question
-could be assembled at all ([TD-12](tech-debt.md)). The exit criteria are unmet and the gating mechanism needs
-replacing — see the dated correction on [ADR-0004](../architecture/adr/0004-claim-based-questions.md), plus
-[ADR-0005](../architecture/adr/0005-feedback-as-eval-data.md).
+**Status.** Built and measured; awaiting a read-through in the app. The first live run failed the milestone — the
+discrimination gate left 1 of 28 borrowed claims standing and no question could be assembled. Replaced by pairwise
+generation ([ADR-0006](../architecture/adr/0006-pairwise-claims.md)), which re-measured at 6 of 6 pairs separating
+and 4 of 4 skills askable on four reverse proxies. Assembly, validation and the flag path are covered by tests; what
+remains is reading real questions on screen.
 
 ### M-5 — The daily loop
 

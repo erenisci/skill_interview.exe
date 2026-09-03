@@ -40,19 +40,20 @@ Task prompts add only what is specific to their task. The preamble is never dupl
 
 ## Templates
 
-| Prompt               | Task                     | Input                                          | Output                                        | Notes                                                                                                                                     |
-| -------------------- | ------------------------ | ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolve-source`     | Pick the right candidate | Skill name, candidate titles + lead paragraphs | Chosen candidate id, or `none`, with a reason | Runs before anything is written. "None" must be as easy to answer as a pick — a forced choice is how Pompeii becomes a source for Zustand |
-| `primer-card`        | Synthesize a primer      | Extracted source text, skill name, language    | Title, body, source references                | Must note disagreement between sources rather than silently picking one                                                                   |
-| `classify-skill`     | Assign category and tags | Card and sources                               | Category, tags, confidence                    | Low confidence is stored and surfaced, not hidden                                                                                         |
-| `comparison-card`    | Explain a difference     | Two skills' sources                            | Title, body naming concrete differences       | Generic contrasts ("A is simpler") are a failure                                                                                          |
-| `question-claims`    | Extract usable claims    | A skill's primer card, language                | 4–8 one-sentence claims                       | Must never name its own technology — a claim that does hands over the answer. Generic claims ("is open source") make worthless options    |
-| `discriminate-claim` | Gate a borrowed claim    | Target skill's material, one neighbour's claim | Whether it could be true of the target        | Answers conservatively: unclear means reject. Two correct options is the worst defect a question can have                                 |
-| `question-stem`      | Word the question        | The assembled correct and wrong options        | Stem and explanation                          | Told explicitly it is not choosing the answer or writing options. The explanation names what each wrong option actually describes         |
+| Prompt               | Task                     | Input                                          | Output                                        | Notes                                                                                                                                           |
+| -------------------- | ------------------------ | ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolve-source`     | Pick the right candidate | Skill name, candidate titles + lead paragraphs | Chosen candidate id, or `none`, with a reason | Runs before anything is written. "None" must be as easy to answer as a pick — a forced choice is how Pompeii becomes a source for Zustand       |
+| `primer-card`        | Synthesize a primer      | Extracted source text, skill name, language    | Title, body, source references                | Must note disagreement between sources rather than silently picking one                                                                         |
+| `classify-skill`     | Assign category and tags | Card and sources                               | Category, tags, confidence                    | Low confidence is stored and surfaced, not hidden                                                                                               |
+| `comparison-card`    | Explain a difference     | Two skills' sources                            | Title, body naming concrete differences       | Generic contrasts ("A is simpler") are a failure                                                                                                |
+| `contrastive-claims` | Separate two neighbours  | Both skills' primers, language                 | Claims true of each and false of the other    | One call per pair, both directions. Judging a technology alone produced claims generic to its category; with the neighbour in view it separates |
+| `question-stem`      | Word the question        | The assembled correct and wrong options        | Stem and explanation                          | Told plainly it is not choosing the answer or writing options. It may not refer to an option by position — they are shuffled after it writes    |
 
-The three replace the planned `generate-question` and `explain-answer` pair. Splitting them is what makes rule 3
-enforceable: the model never sees a choice to make, because the options are already fixed by the time it is asked to
-write anything ([ADR-0004](../architecture/adr/0004-claim-based-questions.md)).
+`contrastive-claims` replaces the planned `generate-question` and `explain-answer` pair, and also replaces the
+`question-claims` + `discriminate-claim` pair that shipped first. Separating a claim from its neighbour **during**
+generation rather than gating it afterwards is what makes rule 3 enforceable: the model never sees a choice to make,
+and it is never asked to reason about what a piece of material does not say
+([ADR-0006](../architecture/adr/0006-pairwise-claims.md)).
 
 ## Versioning
 

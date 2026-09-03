@@ -137,39 +137,47 @@ lost.
 must-pass and must-fail pairs. Tuning these by hand until the output looks good is the mistake ADR-0003's correction
 already records.
 
-### TD-12 — The discrimination gate rejects almost every distractor
+### TD-12 — Nothing independently checks that a distractor is false — RESOLVED, with a residue
 
-**What.** Measured 2026-09-03 with `evals/probes/question-probe.mjs` against `qwen3:4b`, on nginx, HAProxy and
-Apache HTTP Server: **1 of 28 borrowed claims survived the gate (4%)**. Three are needed per question, so no
-question could be assembled for any of the three skills. This was logged as a risk before it was measured; the
-measurement turned it into a blocker.
-**Why it exists.** The gate rejects only when the material **explicitly contradicts** the claim. Probed on
-unambiguous cases it correctly kept "uses the process name httpd" and "is released under the Apache License 2.0" —
-in both the nginx material states the opposite. Where the material is merely silent it answers "could be true",
-in its own words because "the material does not indicate that it does not have this capability". Material about one
-technology is silent about nearly everything another technology does, so the tie-breaker in
-`discriminate-claim.v1.md` — "if the material does not settle it, answer `true`" — rejects nearly everything. The
-safe default was the fatal one.
-**Cost.** Question generation produces nothing for skills whose neighbours are similar, which is precisely the case
-the product is built around. The app has cards and no questions.
-**Contained by.** Nothing. This is a blocker, not an accepted compromise, and it is recorded here only until the
-successor ADR replaces the mechanism.
-**Remediation.** Not a threshold to nudge — asking "could this be true of X?" against material about X lets the
-model reason only from absence. The candidate fix is to move discrimination into generation, where the model sees
-both technologies at once and is already known to do well (the comparison card proves it). Recorded as a correction
-on [ADR-0004](../architecture/adr/0004-claim-based-questions.md); the replacement needs its own ADR.
+**What.** Measured 2026-09-03: the separate discrimination gate left **1 of 28** borrowed claims standing (4%), and
+no question could be assembled. Replaced by pairwise generation
+([ADR-0006](../architecture/adr/0006-pairwise-claims.md)); re-measured on four reverse proxies, **6 of 6 pairs
+separated and 4 of 4 skills became askable**.
+**The residue.** The gate was a second, separately-verifiable opinion about whether a wrong answer was really wrong.
+There is no longer one. If the model says a claim is false of the target and it is not, nothing downstream catches
+it — the structural validator checks form, not truth.
+**Cost.** A question with two correct options can reach the user. That is the worst defect a question has, because
+the reader answers correctly and is told they are wrong.
+**Contained by.** The user's `ambiguous` flag, which exists for exactly this and takes the question out of rotation
+on the first sighting ([ADR-0005](../architecture/adr/0005-feedback-as-eval-data.md)).
+**Remediation.** Track the `ambiguous` flag rate per prompt version in M-7. If it is low, the single judgement is
+enough and this closes; if not, the answer is a second opinion that compares the two claims against each other —
+never the material-absence question that failed the first time.
 
-### TD-13 — Claims come back generic instead of distinguishing
+### TD-13 — Claims still come back as trivia
 
-**What.** In the same run, asked for claims about HAProxy the model returned properties true of the whole category:
-"supports HTTP/2 and HTTP/3", "event-driven multithreaded architecture", "SSL/TLS termination", "load balancing".
-`question-claims.v1.md` asks for what is distinctive and says generic properties make worthless options.
-**Why it exists.** A skill is described on its own, with no neighbour in view, so the model has nothing to contrast
-against and falls back on what the category shares. Apache's claims were specific by comparison — but specific in
-the wrong way (market share, the NCSA lineage, the licence), which is trivia rather than understanding.
-**Cost.** A generic claim is correctly rejected by the gate, so it wastes a model call; used as the _correct_ option
-it makes a question that teaches nothing.
-**Contained by.** Nothing yet.
-**Remediation.** Shares a root cause with [TD-12](#td-12--the-discrimination-gate-rejects-almost-every-distractor):
-both come from judging one technology in isolation. A fix that generates claims per pair would address both, and
-should be measured before it is believed.
+**What.** `contrastive-claims.v1.md` forbids separating on popularity, licensing, age, origin, or process names, and
+the model produces them anyway: "serves 23.7% of the busiest websites", "is released under the Apache License 2.0",
+"runs under Unix as the HTTP daemon process named httpd". Measured 2026-09-03, after the rule was strengthened once.
+**Why it exists.** Trivia separates two technologies perfectly, which is what the prompt asks for, and it is the
+easiest separation to find in an encyclopedia article. The rule against it competes with the rule the model is
+succeeding at.
+**Cost.** A question that tests whether the reader memorised a licence. It is not wrong, and it is not what the
+reader came for.
+**Contained by.** Partly, and by accident: the trivia claims measured so far tend to be long run-on sentences that
+`MAX_LENGTH_RATIO` rejects. That is luck, not a mechanism.
+**Remediation.** Belongs in the eval set as a scored property rather than another prompt round — this rule has been
+strengthened once already with no measured effect, which is the signal to stop hand-tuning
+([TD-10](#td-10--resolution-cannot-tell-a-technology-from-the-tooling-around-it) records the same lesson).
+
+### TD-14 — A skill needs three researched neighbours before it can be asked about
+
+**What.** A pair of similar technologies yields roughly one usable separating claim per side, so three wrong answers
+require three neighbours. A user with three skills gets cards and no questions.
+**Why it exists.** Pushing the prompt for more claims per side was measured: it returns four, and all four name their
+own technology while the separation degrades. Quantity bought at the cost of the rules that matter is not quantity
+([ADR-0006](../architecture/adr/0006-pairwise-claims.md)).
+**Cost.** The app looks unfinished for a small skill list, and the empty state has to explain something subtle.
+**Contained by.** The questions view says why there is nothing yet rather than showing an empty panel.
+**Remediation.** Revisit if a larger model yields more claims per pair — this is a good candidate for the
+two-model comparison in M-7, since it is one number that decides how the product feels on day one.

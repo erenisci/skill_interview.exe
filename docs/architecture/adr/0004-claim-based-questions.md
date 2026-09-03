@@ -9,7 +9,9 @@ date: 2026-09-03
 
 ## Status
 
-Accepted — 2026-09-03. **One supporting assumption was measured and did not hold; see the correction below.**
+Accepted — 2026-09-03. **One supporting assumption was measured and did not hold** (see the correction below), and
+the mechanism it supported is **superseded by [ADR-0006](0006-pairwise-claims.md)**. The framing here — a claim as
+the unit that crosses between skills, dropping rather than padding, and a pure structural validator — still stands.
 
 ## Correction — 2026-09-03
 
@@ -47,9 +49,9 @@ generic to the whole category ("supports HTTP/2 and HTTP/3", "event-driven archi
 Those are genuinely true of nginx, so rejecting them is the gate working correctly. `question-claims.v1.md` asks for
 distinguishing claims and did not get them.
 
-Both belong to a successor ADR rather than to edits here. What the measurement settles is that a gate asking "could
-this be true?" against material about the target puts the burden where a small model cannot carry it: it can only
-ever reason from absence.
+Both belong to a successor ADR rather than to edits here, and [ADR-0006](0006-pairwise-claims.md) is it. What the
+measurement settles is that a gate asking "could this be true?" against material about the target puts the burden
+where a small model cannot carry it: it can only ever reason from absence.
 
 ## Context
 

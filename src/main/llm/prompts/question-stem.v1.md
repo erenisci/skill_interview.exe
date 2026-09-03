@@ -18,6 +18,9 @@ The `explanation` is shown after the reader answers.
 - Then say, in one short sentence, what each wrong option actually describes. The wrong options are true
   statements about the neighbouring technologies named beside them — that is the whole lesson, so say so
   plainly rather than calling them simply wrong.
+- **Never refer to an option by position.** Not "the first option", not "option B", not "the last one". The
+  options are shuffled after you write this, so any position you name will be wrong by the time it is read.
+  Refer to each one by what it says: "the claim about automatic certificates describes Caddy".
 - Claim nothing beyond what the options and the material state.
 
 Write in {{LANGUAGE}}. Keep technical terms, product names, and command names in their original form —

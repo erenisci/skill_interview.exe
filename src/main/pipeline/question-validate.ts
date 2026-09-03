@@ -82,6 +82,28 @@ export function normalizeClaim(text: string): string {
   return tokenize(text).join(' ');
 }
 
+/**
+ * Removes a technology name used as the sentence's subject.
+ *
+ * Measured, this is the single most common way a generated claim becomes unusable: the
+ * content is right and the form gives the answer away — "nginx handles more than 10,000
+ * simultaneous connections" rather than "handles more than 10,000…". Dropping those threw
+ * away most of a run's usable claims for a reason that is a prefix.
+ *
+ * Deliberately narrow. It strips a **leading** subject and nothing else: a name buried
+ * mid-sentence cannot be removed without rewriting the sentence, and rewriting a claim by
+ * regex is how a grammatical option becomes a broken one. Those are still dropped.
+ */
+export function stripLeadingSubject(text: string, names: readonly string[]): string {
+  const trimmed = text.trim();
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const leading = new RegExp(`^(the\\s+)?${escaped}(['’]s)?\\s+`, 'i');
+    if (leading.test(trimmed)) return trimmed.replace(leading, '');
+  }
+  return trimmed;
+}
+
 export function validateQuestion(candidate: CandidateQuestion): readonly string[] {
   const violations: string[] = [];
   const { options } = candidate;

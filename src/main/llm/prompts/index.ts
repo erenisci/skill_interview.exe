@@ -1,8 +1,7 @@
 import classifySkillV1 from './classify-skill.v1.md?raw';
 import comparisonCardV1 from './comparison-card.v1.md?raw';
-import discriminateClaimV1 from './discriminate-claim.v1.md?raw';
+import contrastiveClaimsV1 from './contrastive-claims.v1.md?raw';
 import primerCardV1 from './primer-card.v1.md?raw';
-import questionClaimsV1 from './question-claims.v1.md?raw';
 import questionStemV1 from './question-stem.v1.md?raw';
 import resolveSourceV1 from './resolve-source.v1.md?raw';
 
@@ -36,14 +35,14 @@ export const COMPARISON_CARD: Prompt = {
   template: comparisonCardV1,
 };
 
-export const QUESTION_CLAIMS: Prompt = {
-  version: 'question-claims.v1',
-  template: questionClaimsV1,
-};
-
-export const DISCRIMINATE_CLAIM: Prompt = {
-  version: 'discriminate-claim.v1',
-  template: discriminateClaimV1,
+/**
+ * One call per pair, both directions. It replaces the `question-claims` + `discriminate-claim`
+ * pair, whose separate gate was measured leaving 1 of 28 distractors standing
+ * ([ADR-0006](../../../../docs/architecture/adr/0006-pairwise-claims.md)).
+ */
+export const CONTRASTIVE_CLAIMS: Prompt = {
+  version: 'contrastive-claims.v1',
+  template: contrastiveClaimsV1,
 };
 
 export const QUESTION_STEM: Prompt = {

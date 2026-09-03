@@ -24,11 +24,11 @@ const NOW = '2026-09-03T12:00:00.000Z';
 /**
  * Claims are kept close in length on purpose. The validator rejects a set where one option
  * is conspicuously longer, so ragged fixtures would make these tests fail for a reason
- * that has nothing to do with what they are asserting.
+ * that has nothing to do with what they assert.
  */
 const NGINX_CLAIMS = [
-  'routes requests to backend services by host and path',
   'buffers slow client uploads before passing them along',
+  'reloads workers gracefully by forking a new generation',
 ];
 
 const TRAEFIK_CLAIMS = [
@@ -44,11 +44,8 @@ const STEM = {
 };
 
 /**
- * Dispatches on schema name rather than call order.
- *
- * Question generation interleaves three different calls whose counts depend on how many
- * distractors survive the gate, so an ordered queue would encode the answer into the
- * fixture — and would break every time the assembly changed.
+ * Dispatches on schema name rather than call order, so a fixture does not encode how many
+ * calls the assembly happens to make.
  */
 class RoutingLlm implements LlmAdapter {
   readonly id = 'routing';
@@ -82,11 +79,10 @@ class RoutingLlm implements LlmAdapter {
   }
 }
 
-/** Every borrowed claim is clearly false of the target — the generous case. */
+/** The generous case: the pair separates cleanly in both directions. */
 function llm(overrides: Partial<Record<string, (r: GenerationRequest<unknown>) => unknown>> = {}) {
   return new RoutingLlm({
-    'question-claims': () => ({ claims: NGINX_CLAIMS }),
-    'discriminate-claim': () => ({ couldBeTrue: false, reason: 'a different model entirely' }),
+    'contrastive-claims': () => ({ aClaims: NGINX_CLAIMS, bClaims: TRAEFIK_CLAIMS }),
     'question-stem': () => STEM,
     ...overrides,
   });
@@ -135,28 +131,12 @@ function addPrimer(skill: Skill): number {
   ).id;
 }
 
-function storeClaims(skill: Skill, cardId: number, texts: readonly string[]): void {
-  questions.replaceClaims(
-    skill.id,
-    texts.map((text) => ({
-      skillId: skill.id,
-      cardId,
-      text,
-      model: 'stub',
-      promptVersion: 'question-claims.v1',
-      createdAt: NOW,
-    })),
-  );
-}
-
-/** nginx with a primer, and Traefik next to it with a full pool of claims. */
+/** nginx and Traefik, both researched and linked in the graph. */
 function pairWithNeighbour(): { nginx: Skill; traefik: Skill } {
   const nginx = addSkill('nginx');
   addPrimer(nginx);
-
   const traefik = addSkill('Traefik');
-  const traefikCard = addPrimer(traefik);
-  storeClaims(traefik, traefikCard, TRAEFIK_CLAIMS);
+  addPrimer(traefik);
 
   relations.replaceFor(nginx.id, [
     { skillAId: nginx.id, skillBId: traefik.id, kind: 'same-category', strength: 0.9 },
@@ -202,7 +182,24 @@ describe('question generation — the exit criterion', () => {
         expect(distractor.sourceSkillId).toBe(traefik.id);
         expect(TRAEFIK_CLAIMS).toContain(distractor.text);
       }
+
+      // And the correct one is written about the skill being asked about.
+      const correct = question.options.find((o) => o.isCorrect);
+      expect(NGINX_CLAIMS).toContain(correct?.text);
     }
+  });
+
+  it('stores each claim against the skill it was separated from', async () => {
+    const { nginx, traefik } = pairWithNeighbour();
+    await handlerWith(llm())(jobFor(nginx.id));
+
+    // A claim is only safe to borrow because of what it is false of, so that half is
+    // stored rather than implied.
+    const forward = questions.claimsForPair(nginx.id, traefik.id);
+    const back = questions.claimsForPair(traefik.id, nginx.id);
+    expect(forward.map((c) => c.text)).toEqual(NGINX_CLAIMS);
+    expect(back.map((c) => c.text)).toEqual(TRAEFIK_CLAIMS);
+    expect(forward.every((c) => c.contrastSkillId === traefik.id)).toBe(true);
   });
 
   it('stamps the prompt version that produced each question', async () => {
@@ -218,18 +215,119 @@ describe('question generation — the exit criterion', () => {
     // A source of randomness that always sends the last element to the front.
     await handlerWith(llm(), () => 0)(jobFor(nginx.id));
 
-    const first = questions.listBySkill(nginx.id)[0];
-    expect(first?.options[0]?.isCorrect).toBe(false);
+    expect(questions.listBySkill(nginx.id)[0]?.options[0]?.isCorrect).toBe(false);
+  });
+});
+
+describe('question generation — borrowing across the skill list', () => {
+  /**
+   * What a pair actually yields, measured: about one solid separating claim per side.
+   * Three neighbours are therefore what a question needs, and each contributes one wrong
+   * answer.
+   */
+  const PAIRS: Readonly<Record<string, { own: string; theirs: string }>> = {
+    HAProxy: {
+      own: 'buffers slow client uploads before passing them along',
+      theirs: 'balances raw TCP connections as well as HTTP requests',
+    },
+    'Apache HTTP Server': {
+      own: 'reloads workers gracefully by forking a new generation',
+      theirs: 'embeds language interpreters inside the server process',
+    },
+    Caddy: {
+      own: 'requires an explicit reload to pick up configuration',
+      theirs: 'obtains certificates automatically over the ACME flow',
+    },
+  };
+
+  function withThreeNeighbours() {
+    const nginx = addSkill('nginx');
+    addPrimer(nginx);
+    const neighbours = Object.keys(PAIRS).map((name) => {
+      const skill = addSkill(name);
+      addPrimer(skill);
+      return skill;
+    });
+    relations.replaceFor(
+      nginx.id,
+      neighbours.map((other) => ({
+        skillAId: Math.min(nginx.id, other.id),
+        skillBId: Math.max(nginx.id, other.id),
+        kind: 'same-category' as const,
+        strength: 0.9,
+      })),
+    );
+    return { nginx, neighbours };
+  }
+
+  /** One claim per side per pair, routed by which neighbour the prompt names. */
+  function pairwiseLlm() {
+    return new RoutingLlm({
+      'contrastive-claims': (request) => {
+        const entry = Object.entries(PAIRS).find(([name]) => request.prompt.includes(name));
+        if (!entry) return { aClaims: [], bClaims: [] };
+        return { aClaims: [entry[1].own], bClaims: [entry[1].theirs] };
+      },
+      'question-stem': () => STEM,
+    });
+  }
+
+  it('draws each wrong answer from a different sibling skill', async () => {
+    const { nginx, neighbours } = withThreeNeighbours();
+    const result = await handlerWith(pairwiseLlm())(jobFor(nginx.id));
+    expect(result.ok).toBe(true);
+
+    const written = questions.listBySkill(nginx.id);
+    expect(written.length).toBeGreaterThan(0);
+
+    const question = written[0];
+    const sources = (question?.options ?? [])
+      .filter((option) => !option.isCorrect)
+      .map((option) => option.sourceSkillId);
+
+    // A pair yields about one usable claim, so three wrong answers means three
+    // neighbours. It is also the better question: the confusion spans the CV.
+    expect(sources).toHaveLength(DISTRACTORS_NEEDED);
+    expect(new Set(sources).size).toBe(DISTRACTORS_NEEDED);
+    for (const source of sources) {
+      expect(neighbours.map((n) => n.id)).toContain(source);
+    }
+  });
+
+  it('names the right technology beside each wrong answer', async () => {
+    const { nginx } = withThreeNeighbours();
+    await handlerWith(pairwiseLlm())(jobFor(nginx.id));
+
+    const question = questions.listBySkill(nginx.id)[0];
+    for (const option of question?.options ?? []) {
+      if (option.isCorrect) {
+        expect(option.rationale).toBe('nginx');
+        continue;
+      }
+      // The rationale must name the skill the claim was actually written about, or the
+      // explanation teaches the wrong lesson.
+      const owner = Object.entries(PAIRS).find(([, claims]) => claims.theirs === option.text);
+      expect(option.rationale).toBe(owner?.[0]);
+    }
+  });
+
+  it('asks each pair once, not once per question', async () => {
+    const { nginx } = withThreeNeighbours();
+    const adapter = pairwiseLlm();
+    await handlerWith(adapter)(jobFor(nginx.id));
+
+    expect(adapter.countOf('contrastive-claims')).toBe(Object.keys(PAIRS).length);
   });
 });
 
 describe('question generation — dropping rather than padding', () => {
-  it('writes no question when too few distractors survive the gate', async () => {
+  it('writes no question when the pair yields too few distractors', async () => {
     const { nginx } = pairWithNeighbour();
     const adapter = llm({
-      // Every neighbour claim could also be true of nginx — the two are similar, which is
-      // exactly why they were paired.
-      'discriminate-claim': () => ({ couldBeTrue: true, reason: 'true of both' }),
+      'contrastive-claims': () => ({
+        aClaims: NGINX_CLAIMS,
+        bClaims: TRAEFIK_CLAIMS.slice(0, 2),
+      }),
     });
 
     const result = await handlerWith(adapter)(jobFor(nginx.id));
@@ -238,17 +336,16 @@ describe('question generation — dropping rather than padding', () => {
     expect(questions.listBySkill(nginx.id)).toHaveLength(0);
   });
 
-  it('writes no question when only two distractors are clearly false', async () => {
+  it('accepts that a pair may separate on nothing at all', async () => {
     const { nginx } = pairWithNeighbour();
-    const allowed = TRAEFIK_CLAIMS.slice(0, 2);
     const adapter = llm({
-      'discriminate-claim': (request) => ({
-        couldBeTrue: !allowed.some((claim) => request.prompt.includes(claim)),
-        reason: 'r',
-      }),
+      // The prompt says empty arrays are a correct answer when the material shows no
+      // difference worth stating. Two near-identical tools can reach that honestly.
+      'contrastive-claims': () => ({ aClaims: [], bClaims: [] }),
     });
 
-    await handlerWith(adapter)(jobFor(nginx.id));
+    const result = await handlerWith(adapter)(jobFor(nginx.id));
+    expect(result.ok).toBe(true);
     expect(questions.listBySkill(nginx.id)).toHaveLength(0);
   });
 
@@ -264,42 +361,62 @@ describe('question generation — dropping rather than padding', () => {
     expect(questions.listBySkill(nginx.id)).toHaveLength(0);
   });
 
-  it('refuses a claim that names its own technology', async () => {
-    const nginx = addSkill('nginx');
-    addPrimer(nginx);
+  it('rescues a claim whose only fault is naming itself first', async () => {
+    const { nginx, traefik } = pairWithNeighbour();
     const adapter = llm({
-      'question-claims': () => ({
-        claims: ['nginx routes requests by host', 'nginx buffers slow uploads'],
+      'contrastive-claims': () => ({
+        // Measured, this is how a correct claim most often arrives: the content is right
+        // and the subject is spelled out. That is a prefix, not a flaw.
+        aClaims: ['nginx buffers slow client uploads before passing them along'],
+        bClaims: TRAEFIK_CLAIMS,
       }),
     });
 
-    const result = await handlerWith(adapter)(jobFor(nginx.id));
-    // Both claims give the answer away, leaving nothing usable to ask about.
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe('too-few-claims');
-    expect(questions.claimsForSkill(nginx.id)).toHaveLength(0);
+    await handlerWith(adapter)(jobFor(nginx.id));
+
+    expect(questions.claimsForPair(nginx.id, traefik.id).map((c) => c.text)).toEqual([
+      'buffers slow client uploads before passing them along',
+    ]);
+    expect(questions.listBySkill(nginx.id)).toHaveLength(1);
+  });
+
+  it('still discards a claim that names a technology mid-sentence', async () => {
+    const { nginx, traefik } = pairWithNeighbour();
+    const adapter = llm({
+      'contrastive-claims': () => ({
+        // Removing this one would need the sentence rewritten, and a regex rewrite turns a
+        // grammatical option into a broken one.
+        aClaims: ['handles more connections per worker than Traefik does'],
+        bClaims: TRAEFIK_CLAIMS,
+      }),
+    });
+
+    await handlerWith(adapter)(jobFor(nginx.id));
+
+    expect(questions.claimsForPair(nginx.id, traefik.id)).toHaveLength(0);
+    expect(questions.listBySkill(nginx.id)).toHaveLength(0);
   });
 });
 
 describe('question generation — spending the model once', () => {
-  it('asks the gate once per neighbour claim, not once per question', async () => {
+  it('writes a pair once and reuses it on a later run', async () => {
     const { nginx } = pairWithNeighbour();
     const adapter = llm();
     await handlerWith(adapter)(jobFor(nginx.id));
+    await handlerWith(adapter)(jobFor(nginx.id));
 
-    // Two nginx claims are asked about, and both draw from the same pool of four.
-    expect(questions.listBySkill(nginx.id).length).toBeGreaterThan(1);
-    expect(adapter.countOf('discriminate-claim')).toBeLessThanOrEqual(TRAEFIK_CLAIMS.length);
+    // Separating nginx from Traefik is one judgement, not one per run.
+    expect(adapter.countOf('contrastive-claims')).toBe(1);
   });
 
-  it('reuses stored claims instead of writing them again', async () => {
-    const { nginx } = pairWithNeighbour();
-    const nginxCard = cards.listBySkill(nginx.id)[0];
-    storeClaims(nginx, nginxCard?.id ?? 0, NGINX_CLAIMS);
-
+  it('writes both directions in a single call', async () => {
+    const { nginx, traefik } = pairWithNeighbour();
     const adapter = llm();
     await handlerWith(adapter)(jobFor(nginx.id));
-    expect(adapter.countOf('question-claims')).toBe(0);
+
+    expect(adapter.countOf('contrastive-claims')).toBe(1);
+    expect(questions.claimsForPair(nginx.id, traefik.id).length).toBeGreaterThan(0);
+    expect(questions.claimsForPair(traefik.id, nginx.id).length).toBeGreaterThan(0);
   });
 
   it('does not ask the same claim twice when the job runs again', async () => {
@@ -342,7 +459,7 @@ describe('question generation — spending the model once', () => {
 });
 
 describe('question generation — waiting for the graph', () => {
-  it('defers instead of failing when no neighbour has claims yet', async () => {
+  it('defers instead of failing when the skill has no neighbours yet', async () => {
     const nginx = addSkill('nginx');
     addPrimer(nginx);
 
@@ -353,7 +470,24 @@ describe('question generation — waiting for the graph', () => {
     expect(questions.listBySkill(nginx.id)).toHaveLength(0);
   });
 
-  it('re-enqueues a neighbour whose pool has just grown', async () => {
+  it('skips a neighbour that has not been researched yet', async () => {
+    const nginx = addSkill('nginx');
+    addPrimer(nginx);
+    const traefik = addSkill('Traefik'); // no primer
+    relations.replaceFor(nginx.id, [
+      { skillAId: nginx.id, skillBId: traefik.id, kind: 'same-category', strength: 0.9 },
+    ]);
+
+    const adapter = llm();
+    const result = await handlerWith(adapter)(jobFor(nginx.id));
+
+    expect(result.ok).toBe(true);
+    // No material for one side means no honest separation, so the call is never made.
+    expect(adapter.countOf('contrastive-claims')).toBe(0);
+    expect(questions.listBySkill(nginx.id)).toHaveLength(0);
+  });
+
+  it('re-enqueues a neighbour whose material has just arrived', async () => {
     const { nginx, traefik } = pairWithNeighbour();
     await handlerWith(llm())(jobFor(nginx.id));
 
@@ -477,6 +611,45 @@ describe('QuestionsRepository — the invariants SQLite cannot express', () => {
       ),
     ).toThrow();
     expect(questions.listBySkill(skill.id)).toHaveLength(0);
+  });
+
+  it('replaces one direction of a pair without touching the other', () => {
+    const { nginx, traefik } = pairWithNeighbour();
+    const cardId = cards.listBySkill(nginx.id)[0]?.id ?? 0;
+    const claim = (text: string, skillId: number, contrastSkillId: number) => ({
+      skillId,
+      contrastSkillId,
+      cardId,
+      text,
+      model: 'stub',
+      promptVersion: 'contrastive-claims.v1',
+      createdAt: NOW,
+    });
+
+    questions.replaceClaimsForPair(nginx.id, traefik.id, [claim('a', nginx.id, traefik.id)]);
+    questions.replaceClaimsForPair(traefik.id, nginx.id, [claim('b', traefik.id, nginx.id)]);
+    questions.replaceClaimsForPair(nginx.id, traefik.id, [claim('c', nginx.id, traefik.id)]);
+
+    expect(questions.claimsForPair(nginx.id, traefik.id).map((c) => c.text)).toEqual(['c']);
+    expect(questions.claimsForPair(traefik.id, nginx.id).map((c) => c.text)).toEqual(['b']);
+  });
+
+  it('reports a pair as written from either direction', () => {
+    const { nginx, traefik } = pairWithNeighbour();
+    expect(questions.pairWritten(nginx.id, traefik.id)).toBe(false);
+
+    questions.replaceClaimsForPair(traefik.id, nginx.id, [
+      {
+        skillId: traefik.id,
+        contrastSkillId: nginx.id,
+        cardId: cards.listBySkill(traefik.id)[0]?.id ?? 0,
+        text: 'x',
+        model: 'stub',
+        promptVersion: 'contrastive-claims.v1',
+        createdAt: NOW,
+      },
+    ]);
+    expect(questions.pairWritten(nginx.id, traefik.id)).toBe(true);
   });
 });
 

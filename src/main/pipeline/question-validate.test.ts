@@ -3,6 +3,7 @@ import {
   MAX_LENGTH_RATIO,
   mentions,
   shuffle,
+  stripLeadingSubject,
   tokenize,
   validateQuestion,
   type CandidateOption,
@@ -183,6 +184,52 @@ describe('mentions — whole words, because the short names are the dangerous on
 
   it('ignores case and surrounding punctuation', () => {
     expect(mentions('uses REDIS, mostly.', 'Redis')).toBe(true);
+  });
+});
+
+describe('stripLeadingSubject — a prefix is not a reason to lose a claim', () => {
+  const NAMES = ['nginx', 'Apache HTTP Server', 'C++'];
+
+  it('removes a name used as the sentence subject', () => {
+    expect(stripLeadingSubject('nginx handles 10,000 connections', NAMES)).toBe(
+      'handles 10,000 connections',
+    );
+  });
+
+  it('removes a possessive subject', () => {
+    expect(stripLeadingSubject("nginx's workers reload gracefully", NAMES)).toBe(
+      'workers reload gracefully',
+    );
+  });
+
+  it('removes a multi-word name, and an article before it', () => {
+    expect(stripLeadingSubject('The Apache HTTP Server forks per request', NAMES)).toBe(
+      'forks per request',
+    );
+  });
+
+  it('leaves a claim that names nothing untouched', () => {
+    expect(stripLeadingSubject('It uses an event-driven approach', NAMES)).toBe(
+      'It uses an event-driven approach',
+    );
+  });
+
+  it('does not touch a name buried mid-sentence', () => {
+    // Removing it would need the sentence rewritten, and a regex rewrite is how a
+    // grammatical option becomes a broken one. The validator drops these instead.
+    const claim = 'runs faster than nginx under load';
+    expect(stripLeadingSubject(claim, NAMES)).toBe(claim);
+    expect(mentions(stripLeadingSubject(claim, NAMES), 'nginx')).toBe(true);
+  });
+
+  it('handles a name with regex characters in it', () => {
+    expect(stripLeadingSubject('C++ compiles ahead of time', NAMES)).toBe('compiles ahead of time');
+  });
+
+  it('strips only the subject, not a later occurrence of the same name', () => {
+    expect(stripLeadingSubject('nginx proxies to nginx upstreams', NAMES)).toBe(
+      'proxies to nginx upstreams',
+    );
   });
 });
 

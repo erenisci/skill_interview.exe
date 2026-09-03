@@ -34,6 +34,7 @@ interface OptionRow {
 interface ClaimRow {
   id: number;
   skill_id: number;
+  contrast_skill_id: number;
   card_id: number;
   text: string;
   model: string;
@@ -56,6 +57,7 @@ function toClaim(row: ClaimRow): Claim {
   return {
     id: row.id,
     skillId: row.skill_id,
+    contrastSkillId: row.contrast_skill_id,
     cardId: row.card_id,
     text: row.text,
     model: row.model,
@@ -66,6 +68,8 @@ function toClaim(row: ClaimRow): Claim {
 
 export interface NewClaim {
   readonly skillId: number;
+  /** The skill this claim was written to be false of. A claim has no meaning without it. */
+  readonly contrastSkillId: number;
   readonly cardId: number;
   readonly text: string;
   readonly model: string;
@@ -257,34 +261,81 @@ export class QuestionsRepository {
     return rows.map((row) => row.text);
   }
 
-  /** Replaces a skill's claims: a regenerated card invalidates the ones drawn from it. */
-  replaceClaims(skillId: number, claims: readonly NewClaim[]): void {
+  /**
+   * Replaces the claims written about one skill against one neighbour.
+   *
+   * Scoped to the pair, not the skill: claims about nginx written against Traefik say
+   * nothing about how nginx differs from HAProxy, so regenerating one pair must not
+   * discard the other ([ADR-0006](../../../../docs/architecture/adr/0006-pairwise-claims.md)).
+   */
+  replaceClaimsForPair(
+    skillId: number,
+    contrastSkillId: number,
+    claims: readonly NewClaim[],
+  ): void {
     const write = this.db.transaction(() => {
-      this.db.prepare('DELETE FROM claims WHERE skill_id = ?').run(skillId);
+      this.db
+        .prepare('DELETE FROM claims WHERE skill_id = ? AND contrast_skill_id = ?')
+        .run(skillId, contrastSkillId);
       const insert = this.db.prepare(
-        `INSERT INTO claims (skill_id, card_id, text, model, prompt_version, created_at)
-         VALUES (@skillId, @cardId, @text, @model, @promptVersion, @createdAt)`,
+        `INSERT INTO claims (skill_id, contrast_skill_id, card_id, text, model, prompt_version, created_at)
+         VALUES (@skillId, @contrastSkillId, @cardId, @text, @model, @promptVersion, @createdAt)`,
       );
       for (const claim of claims) insert.run(claim);
     });
     write();
   }
 
-  claimsForSkill(skillId: number): readonly Claim[] {
+  /** True of `skillId`, false of `contrastSkillId`. One direction of one pair. */
+  claimsForPair(skillId: number, contrastSkillId: number): readonly Claim[] {
     const rows = this.db
-      .prepare('SELECT * FROM claims WHERE skill_id = ? ORDER BY id ASC')
-      .all(skillId) as ClaimRow[];
+      .prepare('SELECT * FROM claims WHERE skill_id = ? AND contrast_skill_id = ? ORDER BY id ASC')
+      .all(skillId, contrastSkillId) as ClaimRow[];
     return rows.map(toClaim);
   }
 
-  /** Claims belonging to the given skills — the distractor pool for one question. */
-  claimsForSkills(skillIds: readonly number[]): readonly Claim[] {
-    if (skillIds.length === 0) return [];
-    const placeholders = skillIds.map(() => '?').join(', ');
+  /** Claims about this skill, separated from any of the given neighbours. */
+  claimsAbout(skillId: number, contrastIds: readonly number[]): readonly Claim[] {
+    return this.claimsWhere('skill_id = ?', 'contrast_skill_id', skillId, contrastIds);
+  }
+
+  /**
+   * Claims about those neighbours, each written to be false of this skill.
+   *
+   * That second half is the whole safety argument for showing one as a wrong answer, so
+   * the query is deliberately not "claims belonging to my neighbours".
+   */
+  claimsAgainst(skillId: number, subjectIds: readonly number[]): readonly Claim[] {
+    return this.claimsWhere('contrast_skill_id = ?', 'skill_id', skillId, subjectIds);
+  }
+
+  private claimsWhere(
+    fixed: string,
+    varying: string,
+    fixedId: number,
+    ids: readonly number[],
+  ): readonly Claim[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => '?').join(', ');
     const rows = this.db
-      .prepare(`SELECT * FROM claims WHERE skill_id IN (${placeholders}) ORDER BY id ASC`)
-      .all(...skillIds) as ClaimRow[];
+      .prepare(
+        `SELECT * FROM claims WHERE ${fixed} AND ${varying} IN (${placeholders}) ORDER BY id ASC`,
+      )
+      .all(fixedId, ...ids) as ClaimRow[];
     return rows.map(toClaim);
+  }
+
+  /** Whether a pair has been written in either direction, so a rerun can skip the call. */
+  pairWritten(a: number, b: number): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS present FROM claims
+         WHERE (skill_id = @a AND contrast_skill_id = @b)
+            OR (skill_id = @b AND contrast_skill_id = @a)
+         LIMIT 1`,
+      )
+      .get({ a, b }) as { present: number } | undefined;
+    return row !== undefined;
   }
 
   private hydrate(row: QuestionRow): Question {

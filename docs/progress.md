@@ -42,42 +42,45 @@ Its parts:
 every pair strong enough to earn one. Verified live: `nginx` and `Traefik` linked at 0.83 and produced a comparison
 naming concrete differences; `nginx` and `PostgreSQL` did not link. 144 tests.
 
-**M-4 is built, and not yet verified against a real model.** Questions are assembled by code from _claims_: one
-atomic statement about a skill, drawn from its card, that never names its own technology. A question about `nginx`
-is one `nginx` claim plus three claims belonging to its graph neighbours, each of which must first pass a
-discrimination gate proving it is clearly false of `nginx` — because neighbours are similar, and a borrowed claim
-that is true of both produces a question where the reader answers correctly and is told they are wrong. Too few
-survivors means the question is dropped, never padded ([ADR-0004](architecture/adr/0004-claim-based-questions.md)).
+**M-4 is built and measured.** Questions are assembled by code from _claims_: one atomic statement about a skill,
+drawn from its card, that never names its own technology. A question about `nginx` is one `nginx` claim plus three
+claims belonging to its graph neighbours.
+
+Claims are written **per pair, with both technologies in view** — one call returns what is true of each and false of
+the other. That shape was forced by measurement, not chosen: the first design wrote claims about each skill alone and
+gated borrowed ones afterwards, which left 1 of 28 standing and produced no questions at all
+([ADR-0006](architecture/adr/0006-pairwise-claims.md) supersedes that mechanism; ADR-0004's framing still stands).
+Because a pair yields about one usable claim per side, the three wrong answers come from three different
+neighbours — which is also the better question, since the confusion spans the CV rather than one entry in it.
 
 The **"bad question" flag always carries a reason**, and a target separating the question from its explanation. A
 bare thumbs-down was rejected as unactionable: two correct options is a missing code rule, a wandering explanation is
 a prompt problem, and reading every flag as "change the prompt" is the one response that cannot be measured
-([ADR-0005](architecture/adr/0005-feedback-as-eval-data.md)). 188 tests.
+([ADR-0005](architecture/adr/0005-feedback-as-eval-data.md)).
 
 Writing the tests found a real defect: the generation job legitimately runs more than once per skill — a neighbour
-finishing its research re-enqueues it — and the first version rebuilt the same questions from the same claims. It
-now skips any claim already asked about, including one whose question the user flagged.
+finishing its research re-enqueues it — and the first version rebuilt the same questions from the same claims. It now
+skips any claim already asked about, including one whose question the user flagged.
 
 ## In Progress
 
-- **M-4 was run against the real model and does not work.** The live run answered both open questions at once, and
-  answered them badly: **1 of 28 borrowed claims survived the discrimination gate (4%)**, where three are needed per
-  question. No question could be assembled for nginx, HAProxy or Apache. `evals/probes/question-probe.mjs`.
+- **M-4 works, and has not been read end to end in the app yet.** The first live run failed the milestone: the
+  separate discrimination gate left **1 of 28** borrowed claims standing and no question could be assembled. The
+  obvious hypothesis was wrong — more material changed nothing — and probing unambiguous cases found the real cause:
+  the gate rejects only where the material explicitly contradicts a claim, and material about one technology is
+  silent about nearly everything another one does.
 
-  The obvious hypothesis was tested and is wrong — giving the gate the full source article instead of the primer
-  changed nothing (3%). Probing unambiguous cases found the real cause: the gate rejects a claim only when the
-  material **explicitly contradicts** it. Where the material is silent it answers "could be true", and material
-  about one technology is silent about nearly everything another technology does. The tie-breaker in
-  `discriminate-claim.v1.md` — written to protect against the two-correct-options failure — rejects almost
-  everything instead ([TD-12](project/tech-debt.md)).
+  Replaced by pairwise generation ([ADR-0006](architecture/adr/0006-pairwise-claims.md)): both technologies in view,
+  one call per pair, separation decided while writing rather than filtered afterwards. Re-measured on four reverse
+  proxies — the hardest case — **6 of 6 pairs separated and 4 of 4 skills became askable**.
 
-  A second problem surfaced in the same run: claims come back generic rather than distinguishing
-  ([TD-13](project/tech-debt.md)). Both share a root cause — each technology is judged on its own, with no
-  neighbour in view.
+  Two smaller findings came from the same runs and are now code. A name used as the sentence's subject is stripped
+  rather than dropped: "nginx handles more than 10,000 connections" was the commonest way a correct claim arrived
+  unusable, and that is a prefix, not a flaw. And the explanation prompt may no longer refer to an option by
+  position, because options are shuffled after it writes — every explanation in the first good run said "the first
+  option describes…" and would have been wrong on screen.
 
-  **The assembly, validation and flag path are sound and stay.** What has to change is the mechanism that decides
-  which claim may be borrowed, and that needs a successor ADR rather than a nudged threshold. Recorded as a dated
-  correction on [ADR-0004](architecture/adr/0004-claim-based-questions.md).
+  What is left is reading them in the app. 203 tests.
 
 ## Done (recent)
 
@@ -99,16 +102,17 @@ now skips any claim already asked about, including one whose question the user f
 | 2026-09-03 | [ADR-0005](architecture/adr/0005-feedback-as-eval-data.md) — flags carry a reason and reach the model only via measurement |
 | 2026-09-03 | M-4: claim generation, discrimination gate, code-assembled questions, and the pure structural validator                    |
 | 2026-09-03 | M-4: reasoned flag path — recorded, grouped by prompt version, and out of rotation in one transaction                      |
+| 2026-09-03 | Measured the discrimination gate — 1 of 28 distractors survived; more material changed nothing                             |
+| 2026-09-03 | [ADR-0006](architecture/adr/0006-pairwise-claims.md) — pairwise claims replace the gate; 6/6 pairs, 4/4 skills askable     |
+| 2026-09-03 | M-4: a name used as a claim's subject is stripped rather than dropped, and explanations may not cite option positions      |
 
 ## Blocked
 
-- **M-4 cannot ship as built.** The discrimination gate leaves too few distractors to assemble any question
-  ([TD-12](project/tech-debt.md)). The mechanism needs replacing, not tuning, and the replacement needs an ADR.
+- Nothing.
 
 ## Next Up
 
-1. Decide how borrowing is gated, and write the successor ADR. The measurement points at generating claims per pair,
-   where the model sees both technologies at once — the situation the comparison card already proves it handles
+1. Add three or four related skills in the app and read the questions — the last M-4 check a probe cannot make
 2. Settle the truncation budget and `num_ctx` against real retrieved text; both are still provisional
 3. Wire `SKILL_INTERVIEW_DATA_DIR` so a development database can live outside `%APPDATA%` ([operations/env-vars.md](operations/env-vars.md))
 4. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
@@ -125,9 +129,11 @@ now skips any claim already asked about, including one whose question the user f
   [TD-04](project/tech-debt.md) stays open longer than planned. Accepted for v1.
 - Whether constrained decoding costs prose quality. Unmeasured, and in scope for the eval harness.
 - Whether `num_gpu: 99` is safe on GPUs smaller than the reference machine's 4 GB. Configurable, but untested there.
-- ~~Whether the discrimination gate's conservatism starves question generation.~~ **Settled by measurement: it does,
-  at 4% survival** ([TD-12](project/tech-debt.md)). The concern was right and the magnitude was worse than feared.
-  What replaces the gate is the open question now.
+- **Nothing independently checks that a wrong answer is really wrong** ([TD-12](project/tech-debt.md)). The gate that
+  did was measured into the ground and removed; one generation call now carries that judgement alone. The user's
+  `ambiguous` flag is the production signal, and its rate per prompt version is what M-7 should watch.
+- **A skill needs three researched neighbours before it can be asked about** ([TD-14](project/tech-debt.md)), because
+  a pair yields about one usable claim per side. Asking the prompt for more was measured and costs more than it buys.
 - **`MAX_LENGTH_RATIO` and the claim-count bounds are still guesses** ([TD-11](project/tech-debt.md)), like the
   primer's length bounds before them — and still unmeasured, because no question survived far enough to exercise
   them. They belong to the eval set rather than to another round of hand-tuning.

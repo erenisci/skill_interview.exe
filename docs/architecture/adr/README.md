@@ -14,6 +14,7 @@ ADRs are **immutable except for their Status**. To change a decision, write a ne
 | [0003](0003-source-resolution.md)     | Source resolution — a search result is a candidate, never a source                           | Accepted | 2026-09-02 |
 | [0004](0004-claim-based-questions.md) | Claim-based question assembly — distractors are neighbours' claims, gated before use         | Accepted | 2026-09-03 |
 | [0005](0005-feedback-as-eval-data.md) | Feedback is eval data, not training data                                                     | Accepted | 2026-09-03 |
+| [0006](0006-pairwise-claims.md)       | Pairwise claims, separated during generation — supersedes ADR-0004's gate                    | Accepted | 2026-09-03 |
 
 ## When to write one
 
@@ -40,6 +41,10 @@ The two are different, and mixing them destroys the audit trail either way:
 
 ADR-0003 carries an example: its decision holds, but one supporting claim about a search parameter did not survive
 being measured.
+
+ADR-0004 carries both at once, which is what the distinction is for. Its correction records the measurement that
+falsified an assumption; [ADR-0006](0006-pairwise-claims.md) then supersedes the mechanism that assumption supported,
+while ADR-0004's framing of the problem still stands and is still worth reading.
 
 ## Format
 

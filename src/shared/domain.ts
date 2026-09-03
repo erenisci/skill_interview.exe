@@ -79,10 +79,14 @@ export interface Question {
  * Claims are what questions are built out of: the correct option is a claim about the
  * skill being asked about, and the distractors are claims belonging to its neighbours.
  * A claim never names its own technology — that would give the answer away.
+ *
+ * Written per pair. A claim is true of `skillId` and false of `contrastSkillId`, and that
+ * second half is what makes it safe to borrow as a wrong answer (ADR-0006).
  */
 export interface Claim {
   readonly id: number;
   readonly skillId: number;
+  readonly contrastSkillId: number;
   readonly cardId: number;
   readonly text: string;
   readonly model: string;
