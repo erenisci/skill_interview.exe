@@ -1,0 +1,53 @@
+name: CI
+
+# Windows only — this is a Windows-only product, so building anywhere else proves nothing
+# (docs/operations/ci-cd.md).
+#
+# This wires the part of the pipeline that exists today: install, type check, lint, test,
+# and a compile-only build. Two stages the target design describes are deliberately not
+# here yet, because the thing they would test does not exist:
+#
+#   - E2E (Playwright) — no e2e suite has been written.
+#   - Packaging the Windows installer, and attaching it to a tagged release — electron-builder
+#     has no build config (icon, appId, signing) yet.
+#
+# Both are M-8 scope ("Windows installer", "CI build") per docs/project/roadmap.md, and
+# belong here as soon as they exist — not stubbed out now to look more finished than the
+# product is.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A push and its own PR would otherwise run this twice; only the newest run per ref matters.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Rebuilds better-sqlite3's native module against Electron's ABI via the
+      # `postinstall` script — required on every platform, not just this one.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Compiles the app (electron-vite build) without packaging an installer — proves the
+      # code builds; producing a distributable is M-8's job.
+      - run: npm run build

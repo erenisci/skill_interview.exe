@@ -107,6 +107,7 @@ skips any claim already asked about, including one whose question the user flagg
 | 2026-09-03 | M-4: a name used as a claim's subject is stripped rather than dropped, and explanations may not cite option positions      |
 | 2026-09-03 | Settled the truncation/`num_ctx` TBD — measured against real prompts and real articles, no overflow at 4096                |
 | 2026-09-03 | Wired `SKILL_INTERVIEW_DATA_DIR`; the resolved path is never logged, only whether it was overridden                        |
+| 2026-09-03 | Added CI (`.github/workflows/ci.yml`) — install, typecheck, lint, test, compile-only build on Windows runners              |
 
 ## Blocked
 
@@ -115,7 +116,6 @@ skips any claim already asked about, including one whose question the user flagg
 ## Next Up
 
 1. Add three or four related skills in the app and read the questions — the last M-4 check a probe cannot make
-2. Add the CI workflow described in [operations/ci-cd.md](operations/ci-cd.md); no pipeline exists yet
 
 ## Open Decisions
 
