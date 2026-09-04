@@ -12,8 +12,12 @@
   ],
   "compilerOptions": {
     "composite": true,
-
-    "types": ["node", "vite/client"],
-    "lib": ["ESNext"]
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "lib": [
+      "ESNext"
+    ]
   }
 }
