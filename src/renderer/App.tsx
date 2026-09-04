@@ -61,7 +61,7 @@ export function App(): React.JSX.Element {
     return (
       <SetupView
         status={load.status}
-        onRetry={() => void refresh()}
+        onRetry={() => refresh()}
         onContinueAnyway={() => setBypassSetup(true)}
       />
     );
