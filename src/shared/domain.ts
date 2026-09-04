@@ -157,12 +157,19 @@ export interface Job {
   readonly updatedAt: string;
 }
 
-/** What the startup check found. Missing runtime and missing model are different problems. */
+/**
+ * What the startup check found. Missing runtime and missing model are different problems.
+ *
+ * There is deliberately no "running on the stub" state. There used to be, and it was a
+ * dead end: it was reported whenever no model had been selected — which is exactly when
+ * the user needs to see the list of models they could select — and reporting it meant
+ * never asking Ollama for that list at all. `no-model` carries the list; `unreachable`
+ * covers Ollama not answering. Between them there is nothing left for a third state to say.
+ */
 export type LlmReadiness =
   | { readonly state: 'ready'; readonly models: readonly string[]; readonly selected: string }
   | { readonly state: 'no-model'; readonly models: readonly string[] }
-  | { readonly state: 'unreachable'; readonly url: string; readonly detail: string }
-  | { readonly state: 'stub' };
+  | { readonly state: 'unreachable'; readonly url: string; readonly detail: string };
 
 export interface SystemStatus {
   readonly appVersion: string;
