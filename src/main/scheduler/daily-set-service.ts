@@ -7,7 +7,14 @@ import type { ReviewsRepository } from '../db/repositories/reviews';
 import type { SettingsRepository } from '../db/repositories/settings';
 import type { SkillsRepository } from '../db/repositories/skills';
 import { endOfLocalDay, localDateString } from '../util/date';
-import { assembleDailySet, type AssembledItem, type DailySetPool } from './daily-set';
+import {
+  assembleDailySet,
+  PER_SKILL_DEFAULTS,
+  type AssembledItem,
+  type DailySetCounts,
+  type DailySetLimits,
+  type DailySetPool,
+} from './daily-set';
 import { schedule } from './fsrs';
 
 /**
@@ -30,15 +37,19 @@ export interface DailySetDeps {
   readonly now?: () => Date;
 }
 
-function counts(settings: SettingsRepository): { cards: number; questions: number } {
-  // Settings are user-editable strings; a corrupted or hand-edited value falls back to the
-  // shipped default rather than assembling against NaN.
-  const cards = Number.parseInt(settings.get('daily_cards') ?? '', 10);
-  const questions = Number.parseInt(settings.get('daily_questions') ?? '', 10);
-  return {
-    cards: Number.isFinite(cards) && cards >= 0 ? cards : 3,
-    questions: Number.isFinite(questions) && questions >= 0 ? questions : 5,
-  };
+/**
+ * The day's size, summed from the skills rather than set globally.
+ *
+ * A skill with no limit of its own contributes `PER_SKILL_DEFAULTS`; `0` means it is paused
+ * and contributes nothing. So a day grows when a skill is added and shrinks when one is
+ * paused, which is what a person would expect and what a single global count could not do.
+ */
+function counts(limits: DailySetLimits): DailySetCounts {
+  let cards = 0;
+  let questions = 0;
+  for (const value of limits.cards.values()) cards += value ?? PER_SKILL_DEFAULTS.cards;
+  for (const value of limits.questions.values()) questions += value ?? PER_SKILL_DEFAULTS.questions;
+  return { cards, questions };
 }
 
 /** How much of each kind today's set already holds. */
@@ -149,14 +160,20 @@ export function getTodaysSet(deps: DailySetDeps): Result<DailySet> {
   //
   // Only the shortfall is added, and only from material that was never in the set. Nothing
   // already in it moves or is replaced, so the guarantee the freeze exists for is intact.
-  const wanted = counts(deps.settings);
-  const have = tally(frozen);
+  const limits = deps.skills.dailyLimits();
+  const wanted = counts(limits);
+  // Counted on what still renders, not on what the table holds. A frozen row whose card or
+  // question is gone hydrates to nothing, so counting rows made a set of four dead entries
+  // look full and the day stayed permanently empty — which is exactly what happened after a
+  // skill was deleted and re-added.
+  const live = frozen.filter((entry) => hydrate(deps, entry) !== null);
+  const have = tally(live);
   if (have.cards < wanted.cards || have.questions < wanted.questions) {
     const pool = buildPool(deps, endOfLocalDay(now).toISOString(), alreadyIn(frozen));
     const assembled = assembleDailySet(
       pool,
       { cards: wanted.cards - have.cards, questions: wanted.questions - have.questions },
-      deps.skills.dailyLimits(),
+      limits,
     );
     if (assembled.length > 0) {
       deps.reviews.writeDailySet(date, offsetBy(assembled, frozen.length));

@@ -29,11 +29,13 @@ export const CHANNELS = {
   skillsFailure: 'skills:failure',
   skillsLimits: 'skills:limits',
   questionsForSkill: 'questions:for-skill',
+  questionsStatus: 'questions:status',
   questionsFlag: 'questions:flag',
   dailyGet: 'daily:get',
   dailyAnswer: 'daily:answer',
   favoritesList: 'favorites:list',
   favoritesToggle: 'favorites:toggle',
+  favoritesToggleCard: 'favorites:toggle-card',
   favoritesNote: 'favorites:note',
   favoritesExport: 'favorites:export',
   settingsGet: 'settings:get',
@@ -116,6 +118,13 @@ export interface FavoriteCard {
   readonly kind: 'card';
   readonly favorite: Favorite;
   readonly skill: Skill;
+  /**
+   * The other side of a comparison, when there is one.
+   *
+   * A comparison card belongs to a **pair**, not to whichever skill happens to own its row,
+   * so filing it under one name loses half of what it is about. Null for a primer.
+   */
+  readonly relatedSkill: Skill | null;
   readonly card: Card;
   readonly sources: readonly Source[];
 }
@@ -154,6 +163,22 @@ export interface ExportResult {
   readonly path: string | null;
 }
 
+/**
+ * Why a skill has no questions, so the screen can say something true.
+ *
+ * The empty state used to promise that questions were "being written in the background",
+ * which on a real database was false for four skills out of six: every job had finished and
+ * none would ever produce anything, because the pool of wrong answers was one short.
+ */
+export interface QuestionAvailability {
+  /** Wrong answers currently drawn from this skill's neighbours. */
+  readonly distractors: number;
+  /** How many a single question needs. */
+  readonly needed: number;
+  /** Whether generation is genuinely queued or running right now. */
+  readonly working: boolean;
+}
+
 /** A blank field means "no cap of its own"; 0 means "not today". */
 export interface SetSkillLimitsRequest {
   readonly skillId: number;
@@ -172,12 +197,15 @@ export interface IpcContract {
   [CHANNELS.skillsFailure]: { request: number; response: Result<string | null> };
   [CHANNELS.skillsLimits]: { request: SetSkillLimitsRequest; response: Result<Skill> };
   [CHANNELS.questionsForSkill]: { request: number; response: Result<readonly Question[]> };
+  [CHANNELS.questionsStatus]: { request: number; response: Result<QuestionAvailability> };
   [CHANNELS.questionsFlag]: { request: FlagQuestionRequest; response: Result<void> };
   [CHANNELS.dailyGet]: { request: void; response: Result<DailySet> };
   [CHANNELS.dailyAnswer]: { request: AnswerRequest; response: Result<void> };
   [CHANNELS.favoritesList]: { request: void; response: Result<readonly FavoriteEntry[]> };
   /** Responds with the state the item is now in: `true` means favourited. */
   [CHANNELS.favoritesToggle]: { request: FavoriteRef; response: Result<boolean> };
+  /** A card and the questions drawn from it, kept or dropped as one thing. */
+  [CHANNELS.favoritesToggleCard]: { request: number; response: Result<boolean> };
   [CHANNELS.favoritesNote]: { request: FavoriteNoteRequest; response: Result<void> };
   [CHANNELS.favoritesExport]: { request: void; response: Result<ExportResult> };
   [CHANNELS.settingsGet]: { request: string; response: Result<string | null> };

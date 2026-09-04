@@ -1,9 +1,9 @@
+import type { FavoriteEntry } from '@shared/ipc';
 import { appError, err, ok, type Result } from '@shared/result';
 import type { CardsRepository } from '../db/repositories/cards';
 import type { FavoritesRepository } from '../db/repositories/favorites';
 import type { QuestionsRepository } from '../db/repositories/questions';
 import type { SkillsRepository } from '../db/repositories/skills';
-import type { FavoriteEntry } from '@shared/ipc';
 import { renderFavoritesMarkdown } from './markdown';
 
 /**
@@ -32,6 +32,10 @@ export function hydrateFavorites(deps: FavoritesDeps): readonly FavoriteEntry[] 
         kind: 'card',
         favorite,
         skill,
+        // A comparison names two skills; a primer names one. The second is looked up here
+        // rather than in the view so the export and the screen agree on what a card is about.
+        relatedSkill:
+          card.relatedSkillId === null ? null : deps.skills.findById(card.relatedSkillId),
         card,
         sources: deps.cards.sourcesFor(card.id),
       };

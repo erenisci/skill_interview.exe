@@ -244,3 +244,32 @@ describe('exportFavoritesMarkdown', () => {
     if (result.ok) expect(result.value).toContain('## No longer tracked');
   });
 });
+
+describe('QuestionsRepository.listByCard', () => {
+  it('finds the questions drawn from one card and no others', () => {
+    // What "keep this card" has to carry with it. Keeping them separately made it possible
+    // to keep a question whose card was not kept, and an exported question with no material
+    // behind it is a quiz rather than a revision note.
+    const skill = addSkill('nginx');
+    const card = addCard(skill);
+    const other = addCard(skill);
+    const mine = addQuestion(skill, card);
+    addQuestion(skill, other);
+
+    expect(questions.listByCard(card).map((q) => q.id)).toEqual([mine]);
+  });
+
+  it('leaves out a question the user has flagged', () => {
+    const skill = addSkill('nginx');
+    const card = addCard(skill);
+    const flagged = addQuestion(skill, card);
+    questions.setStatus(flagged, 'flagged');
+
+    expect(questions.listByCard(card)).toHaveLength(0);
+  });
+
+  it('is empty for a card nothing was asked about', () => {
+    const skill = addSkill('nginx');
+    expect(questions.listByCard(addCard(skill))).toHaveLength(0);
+  });
+});

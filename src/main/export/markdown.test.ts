@@ -1,6 +1,6 @@
 import type { Card, Favorite, Question, Skill, Source } from '@shared/domain';
-import { describe, expect, it } from 'vitest';
 import type { FavoriteEntry } from '@shared/ipc';
+import { describe, expect, it } from 'vitest';
 import { renderFavoritesMarkdown } from './markdown';
 
 const EXPORTED_AT = new Date('2026-09-03T12:00:00.000Z');
@@ -98,7 +98,14 @@ function question(overrides: Partial<Question> = {}): Question {
 describe('renderFavoritesMarkdown — the document a reader gets', () => {
   it('writes a header counting items and skills', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
     ];
     const output = renderFavoritesMarkdown(entries, EXPORTED_AT);
 
@@ -109,11 +116,19 @@ describe('renderFavoritesMarkdown — the document a reader gets', () => {
 
   it('pluralises the count rather than writing "1 items"', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
       {
         kind: 'card',
         favorite: favorite({ id: 2, itemId: 2 }),
         skill: skill(2, 'HAProxy'),
+        relatedSkill: null,
         card: card({ id: 2, skillId: 2, title: 'HAProxy' }),
         sources: [],
       },
@@ -127,10 +142,18 @@ describe('renderFavoritesMarkdown — the document a reader gets', () => {
         kind: 'card',
         favorite: favorite({ id: 2, itemId: 2 }),
         skill: skill(2, 'HAProxy'),
+        relatedSkill: null,
         card: card({ id: 2, skillId: 2, title: 'HAProxy' }),
         sources: [],
       },
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
     ];
     const output = renderFavoritesMarkdown(entries, EXPORTED_AT);
 
@@ -139,7 +162,14 @@ describe('renderFavoritesMarkdown — the document a reader gets', () => {
 
   it('puts two favourites from one skill under a single heading', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
       {
         kind: 'question',
         favorite: favorite({ id: 2, itemType: 'question', itemId: 1 }),
@@ -160,6 +190,7 @@ describe('renderFavoritesMarkdown — cards', () => {
         kind: 'card',
         favorite: favorite(),
         skill: skill(1, 'nginx'),
+        relatedSkill: null,
         card: card(),
         sources: [source()],
       },
@@ -177,6 +208,7 @@ describe('renderFavoritesMarkdown — cards', () => {
         kind: 'card',
         favorite: favorite(),
         skill: skill(1, 'nginx'),
+        relatedSkill: null,
         card: card(),
         sources: [source({ license: null })],
       },
@@ -192,6 +224,7 @@ describe('renderFavoritesMarkdown — cards', () => {
         kind: 'card',
         favorite: favorite({ note: 'ask about worker processes' }),
         skill: skill(1, 'nginx'),
+        relatedSkill: null,
         card: card(),
         sources: [],
       },
@@ -203,7 +236,14 @@ describe('renderFavoritesMarkdown — cards', () => {
 
   it('writes no note line at all when there is none', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
     ];
     expect(renderFavoritesMarkdown(entries, EXPORTED_AT)).not.toContain('**Note.**');
   });
@@ -271,7 +311,14 @@ describe('renderFavoritesMarkdown — favourites whose skill is gone', () => {
 
   it('does not count an orphan as a skill group', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
       { kind: 'orphaned', favorite: favorite({ id: 2, itemId: 2 }) },
     ];
     expect(renderFavoritesMarkdown(entries, EXPORTED_AT)).toContain('2 items across 1 skill');
@@ -281,7 +328,14 @@ describe('renderFavoritesMarkdown — favourites whose skill is gone', () => {
 describe('renderFavoritesMarkdown — shape', () => {
   it('ends with exactly one newline', () => {
     const entries: FavoriteEntry[] = [
-      { kind: 'card', favorite: favorite(), skill: skill(1, 'nginx'), card: card(), sources: [] },
+      {
+        kind: 'card',
+        favorite: favorite(),
+        skill: skill(1, 'nginx'),
+        relatedSkill: null,
+        card: card(),
+        sources: [],
+      },
     ];
     const output = renderFavoritesMarkdown(entries, EXPORTED_AT);
     expect(output.endsWith('\n')).toBe(true);

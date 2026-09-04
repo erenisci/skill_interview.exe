@@ -107,35 +107,73 @@ function addQuestion(skill: Skill, cardId: number): number {
   ).id;
 }
 
+/**
+ * The day is summed from the skills, so a test says how much *each* skill contributes
+ * rather than setting one global number. `null` means the shipped per-skill default.
+ */
+function contribute(cards: number | null, questions: number | null): void {
+  for (const skill of skills.list()) skills.setDailyLimits(skill.id, cards, questions);
+}
+
+const AT_NINE = () => new Date('2026-09-03T09:00:00.000Z');
+
 function deps(now: () => Date): DailySetDeps {
   return { skills, cards, questions, reviews, settings, now };
 }
 
 describe('getTodaysSet — the exit criteria', () => {
-  it('assembles new items up to the configured counts', () => {
+  it('assembles a day out of what each skill contributes', () => {
     const nginx = addSkill('nginx');
     addCard(nginx);
     const traefik = addSkill('Traefik');
     const traefikCard = addCard(traefik);
     addQuestion(traefik, traefikCard);
 
-    settings.set('daily_cards', '1');
-    settings.set('daily_questions', '1');
+    // One card each, one question each: two skills, so a two-card day — and only one
+    // question exists to fill the two question slots.
+    contribute(1, 1);
 
     const result = getTodaysSet(deps(() => new Date('2026-09-03T09:00:00.000Z')));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     expect(result.value.date).toBe('2026-09-03');
-    expect(result.value.items).toHaveLength(2);
-    expect(result.value.items.map((i) => i.kind).sort()).toEqual(['card', 'question']);
+    expect(result.value.items.filter((i) => i.kind === 'card')).toHaveLength(2);
+    expect(result.value.items.filter((i) => i.kind === 'question')).toHaveLength(1);
+  });
+
+  it('grows the day when a skill is added, rather than dividing it', () => {
+    // The reason there is no global count: a number split among skills makes every new
+    // skill shrink every existing one, which is backwards. Adding a skill should mean
+    // more to read tomorrow.
+    addCard(addSkill('nginx'));
+    contribute(1, 0);
+    const before = getTodaysSet(deps(AT_NINE));
+    expect(before.ok && before.value.items).toHaveLength(1);
+
+    addCard(addSkill('Traefik'));
+    contribute(1, 0);
+    const after = getTodaysSet(deps(AT_NINE));
+    expect(after.ok && after.value.items).toHaveLength(2);
+  });
+
+  it('drops a paused skill out of the day without touching the others', () => {
+    const paused = addSkill('nginx');
+    addCard(paused);
+    const kept = addSkill('Traefik');
+    addCard(kept);
+    contribute(1, 0);
+    skills.setDailyLimits(paused.id, 0, 0);
+
+    const result = getTodaysSet(deps(AT_NINE));
+    expect(result.ok && result.value.items).toHaveLength(1);
   });
 
   it('resumes the same set on a second read the same day', () => {
     const nginx = addSkill('nginx');
     addCard(nginx);
     addCard(addSkill('Traefik'));
-    settings.set('daily_cards', '1');
+    contribute(1, null);
 
     const now = () => new Date('2026-09-03T09:00:00.000Z');
     const first = getTodaysSet(deps(now));
@@ -149,7 +187,7 @@ describe('getTodaysSet — the exit criteria', () => {
     // other new card — a different set, exactly what FR-42 requires.
     addCard(addSkill('nginx'));
     addCard(addSkill('Traefik'));
-    settings.set('daily_cards', '1');
+    contribute(1, null);
 
     const day1 = new Date('2026-09-03T09:00:00.000Z');
     const set1 = getTodaysSet(deps(() => day1));
@@ -181,11 +219,13 @@ describe('getTodaysSet — the exit criteria', () => {
     if (result.ok) expect(result.value.items).toEqual([]);
   });
 
-  it('leaves backlog past the cap due rather than showing it all at once', () => {
-    addCard(addSkill('nginx'));
-    addCard(addSkill('Traefik'));
-    addCard(addSkill('HAProxy'));
-    settings.set('daily_cards', '1');
+  it('leaves backlog past a skill’s own limit due rather than showing it all at once', () => {
+    // Three cards on one skill, which allows itself one a day. The other two stay due.
+    const skill = addSkill('nginx');
+    addCard(skill);
+    addCard(skill);
+    addCard(skill);
+    contribute(1, 0);
 
     const result = getTodaysSet(deps(() => new Date('2026-09-03T09:00:00.000Z')));
     expect(result.ok && result.value.items).toHaveLength(1);
@@ -195,8 +235,7 @@ describe('getTodaysSet — the exit criteria', () => {
     const traefik = addSkill('Traefik');
     const cardId = addCard(traefik);
     const questionId = addQuestion(traefik, cardId);
-    settings.set('daily_cards', '0');
-    settings.set('daily_questions', '1');
+    contribute(0, 1);
 
     const now = () => new Date('2026-09-03T09:00:00.000Z');
     const first = getTodaysSet(deps(now));
@@ -221,7 +260,7 @@ describe('recordAnswer', () => {
   it('marks the item done and schedules its next review', () => {
     const nginx = addSkill('nginx');
     const cardId = addCard(nginx);
-    settings.set('daily_cards', '1');
+    contribute(1, null);
     const now = () => new Date('2026-09-03T09:00:00.000Z');
 
     const set = getTodaysSet(deps(now));
@@ -252,7 +291,7 @@ describe('recordAnswer', () => {
   it('refuses to answer the same item twice in one day', () => {
     const nginx = addSkill('nginx');
     const cardId = addCard(nginx);
-    settings.set('daily_cards', '1');
+    contribute(1, null);
     const now = () => new Date('2026-09-03T09:00:00.000Z');
     getTodaysSet(deps(now));
 
@@ -276,16 +315,13 @@ describe('recordAnswer', () => {
 });
 
 describe('getTodaysSet — topping up slots that were never filled', () => {
-  const AT_NINE = () => new Date('2026-09-03T09:00:00.000Z');
-
   it('adds material that arrived after the set froze below its cap', () => {
     // Found live: four skills were added, research finished at different times, and the
     // set froze at two cards while still allowed four. The user saw two, had no way to
     // reach the rest, and reasonably read it as broken.
     addCard(addSkill('nginx'));
     addCard(addSkill('Traefik'));
-    settings.set('daily_cards', '4');
-    settings.set('daily_questions', '0');
+    contribute(4, 0);
 
     const first = getTodaysSet(deps(AT_NINE));
     expect(first.ok && first.value.items).toHaveLength(2);
@@ -297,10 +333,13 @@ describe('getTodaysSet — topping up slots that were never filled', () => {
     expect(second.ok && second.value.items).toHaveLength(4);
   });
 
-  it('never exceeds the cap, however often it is read', () => {
+  it('never exceeds the day’s size, however often it is read', () => {
     for (const name of ['nginx', 'Traefik', 'HAProxy', 'Caddy']) addCard(addSkill(name));
-    settings.set('daily_cards', '2');
-    settings.set('daily_questions', '0');
+    // Four skills contributing nothing but one paused pair: a two-card day.
+    contribute(0, 0);
+    const [first, second] = skills.list();
+    if (first) skills.setDailyLimits(first.id, 1, 0);
+    if (second) skills.setDailyLimits(second.id, 1, 0);
 
     getTodaysSet(deps(AT_NINE));
     getTodaysSet(deps(AT_NINE));
@@ -313,8 +352,7 @@ describe('getTodaysSet — topping up slots that were never filled', () => {
     // The freeze exists so the set does not reshuffle under the user. Topping up must add
     // to the end, not reorder.
     addCard(addSkill('nginx'));
-    settings.set('daily_cards', '3');
-    settings.set('daily_questions', '0');
+    contribute(3, 0);
 
     const first = getTodaysSet(deps(AT_NINE));
     const firstIds = first.ok
@@ -332,8 +370,7 @@ describe('getTodaysSet — topping up slots that were never filled', () => {
 
   it('does not offer the same item twice', () => {
     addCard(addSkill('nginx'));
-    settings.set('daily_cards', '5');
-    settings.set('daily_questions', '0');
+    contribute(5, 0);
 
     getTodaysSet(deps(AT_NINE));
     const second = getTodaysSet(deps(AT_NINE));
@@ -346,8 +383,7 @@ describe('getTodaysSet — topping up slots that were never filled', () => {
   it('adds a question that only became available later', () => {
     const traefik = addSkill('Traefik');
     const card = addCard(traefik);
-    settings.set('daily_cards', '1');
-    settings.set('daily_questions', '1');
+    contribute(1, 1);
 
     const first = getTodaysSet(deps(AT_NINE));
     expect(first.ok && first.value.items).toHaveLength(1);
@@ -356,5 +392,40 @@ describe('getTodaysSet — topping up slots that were never filled', () => {
 
     const second = getTodaysSet(deps(AT_NINE));
     expect(second.ok && second.value.items.map((i) => i.kind).sort()).toEqual(['card', 'question']);
+  });
+});
+
+describe('getTodaysSet — a frozen entry whose content is gone', () => {
+  it('refills the day when every frozen item has been deleted', () => {
+    // Found live: a set frozen against four cards, all four skills then deleted and
+    // re-added. The rows still counted as a full day, so `Today` stayed empty for the rest
+    // of it with no way to recover.
+    const skill = addSkill('nginx');
+    addCard(skill);
+    contribute(1, 0);
+
+    getTodaysSet(deps(AT_NINE));
+    skills.remove(skill.id); // takes its cards with it
+
+    const replacement = addSkill('Traefik');
+    addCard(replacement);
+
+    const after = getTodaysSet(deps(AT_NINE));
+    expect(after.ok && after.value.items).toHaveLength(1);
+  });
+
+  it('tops up around a dead entry rather than counting it', () => {
+    const doomed = addSkill('nginx');
+    addCard(doomed);
+    const kept = addSkill('Traefik');
+    addCard(kept);
+    contribute(2, 0);
+
+    getTodaysSet(deps(AT_NINE));
+    skills.remove(doomed.id);
+    addCard(addSkill('HAProxy'));
+
+    const after = getTodaysSet(deps(AT_NINE));
+    expect(after.ok && after.value.items).toHaveLength(2);
   });
 });

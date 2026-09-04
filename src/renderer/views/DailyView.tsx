@@ -1,6 +1,7 @@
-import type { AnswerRating } from '@shared/domain';
+import type { AnswerRating, FeedbackReason, FeedbackTarget } from '@shared/domain';
 import { CHANNELS, type DailySet, type DailySetEntry } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
+import { FlagMenu } from './FlagMenu';
 
 /**
  * The daily set — FR-40 through FR-44. A card carries no correctness, so its two buttons
@@ -11,6 +12,50 @@ import { useCallback, useEffect, useState } from 'react';
 
 function ratingForQuestion(pickedCorrect: boolean): AnswerRating {
   return pickedCorrect ? 'good' : 'again';
+}
+
+/**
+ * The day, read as material then questions rather than as two unrelated blocks.
+ *
+ * Today used to list every card and then every question, which is the order they happen to
+ * be stored in, not the order they make sense in: a question is drawn from a card, so the
+ * card should come first and its questions directly under it.
+ *
+ * A question whose card is not in today's set still has to appear, so it forms a group of
+ * its own. That is ordinary — a card is due on its own schedule, and its questions on
+ * theirs.
+ */
+interface DayGroup {
+  readonly key: string;
+  readonly card: Extract<DailySetEntry, { kind: 'card' }> | null;
+  readonly questions: Extract<DailySetEntry, { kind: 'question' }>[];
+}
+
+export function groupDay(items: readonly DailySetEntry[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  const byCard = new Map<number, DayGroup>();
+
+  for (const item of items) {
+    if (item.kind !== 'card') continue;
+    const group: DayGroup = { key: `card:${String(item.card.card.id)}`, card: item, questions: [] };
+    byCard.set(item.card.card.id, group);
+    groups.push(group);
+  }
+
+  let loose: DayGroup | null = null;
+  for (const item of items) {
+    if (item.kind !== 'question') continue;
+    const owner = byCard.get(item.question.cardId);
+    if (owner) {
+      owner.questions.push(item);
+      continue;
+    }
+    loose ??= { key: 'loose', card: null, questions: [] };
+    loose.questions.push(item);
+  }
+  if (loose) groups.push(loose);
+
+  return groups;
 }
 
 export function DailyView(): React.JSX.Element {
@@ -62,35 +107,91 @@ export function DailyView(): React.JSX.Element {
     await load();
   }
 
-  async function toggleKept(entry: DailySetEntry): Promise<void> {
-    const itemId = entry.kind === 'card' ? entry.card.card.id : entry.question.id;
+  /**
+   * A card and the questions drawn from it are kept as one thing.
+   *
+   * Two stars, one for the card and one for each question, made it possible to keep a
+   * question whose card was not kept — and an exported question with no material behind it
+   * is a quiz, not a revision note. The main process owns the rule so the group can never be
+   * half-kept ([`favorites:toggle-card`](../../main/ipc/index.ts)).
+   */
+  async function toggleKeptCard(cardId: number): Promise<void> {
+    const result = await window.api.invoke(CHANNELS.favoritesToggleCard, cardId);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    // The questions moved with it, so their stars have to as well. Reloading is cheaper to
+    // reason about than mirroring the main process's rule a second time here.
+    await load();
+  }
+
+  /**
+   * A flagged question leaves rotation immediately: telling the user it is bad and then
+   * showing it again tomorrow reads as the app ignoring them.
+   */
+  async function flag(
+    questionId: number,
+    reason: FeedbackReason,
+    target: FeedbackTarget,
+  ): Promise<void> {
+    const result = await window.api.invoke(CHANNELS.questionsFlag, { questionId, target, reason });
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    await load();
+  }
+
+  /**
+   * A question can also be kept on its own.
+   *
+   * The card's star is a shortcut for "this card and everything it asks"; this is the
+   * precise version — keep the two questions that were worth keeping and leave the rest.
+   * Both write to the same table, so a question kept either way is the same row.
+   */
+  async function toggleKeptQuestion(questionId: number): Promise<void> {
     const result = await window.api.invoke(CHANNELS.favoritesToggle, {
-      itemType: entry.kind,
-      itemId,
+      itemType: 'question',
+      itemId: questionId,
     });
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
-    // Reflect the new state without a round trip for the whole set.
     setKept((current) => {
       const next = new Set(current);
-      const key = `${entry.kind}:${String(itemId)}`;
+      const key = `question:${String(questionId)}`;
       if (result.value) next.add(key);
       else next.delete(key);
       return next;
     });
   }
 
-  /** A star, and what it means, in the one place both item kinds share. */
-  function keepButton(entry: DailySetEntry, itemId: number): React.JSX.Element {
-    const isKept = kept.has(`${entry.kind}:${String(itemId)}`);
+  function keepQuestionButton(questionId: number): React.JSX.Element {
+    const isKept = kept.has(`question:${String(questionId)}`);
     return (
       <button
-        title={isKept ? 'Remove from Kept' : 'Keep this'}
-        aria-label={isKept ? 'Remove from Kept' : 'Keep this'}
-        onClick={() => void toggleKept(entry)}
-        style={{ padding: '4px 10px' }}
+        className="keep"
+        title={isKept ? 'Remove this question from Kept' : 'Keep this question'}
+        aria-label={isKept ? 'Remove this question from Kept' : 'Keep this question'}
+        onClick={() => void toggleKeptQuestion(questionId)}
+      >
+        {isKept ? '★' : '☆'}
+      </button>
+    );
+  }
+
+  function keepCardButton(cardId: number): React.JSX.Element {
+    const isKept = kept.has(`card:${String(cardId)}`);
+    return (
+      <button
+        className="keep"
+        title={
+          isKept ? 'Remove this and its questions from Kept' : 'Keep this and all its questions'
+        }
+        aria-label={isKept ? 'Remove from Kept' : 'Keep this and its questions'}
+        onClick={() => void toggleKeptCard(cardId)}
       >
         {isKept ? '★' : '☆'}
       </button>
@@ -128,92 +229,108 @@ export function DailyView(): React.JSX.Element {
           : `${remaining} of ${set.items.length} left for today.`}
       </p>
 
-      {set.items.map((item) => {
-        const itemId = item.kind === 'card' ? item.card.card.id : item.question.id;
-        const key = `${item.kind}:${itemId}`;
-
-        if (item.kind === 'card') {
-          return (
-            <article key={key} className="panel">
-              <h3 style={{ marginTop: 0 }}>{item.card.card.title}</h3>
-              <p className="card-body">{item.card.card.bodyMd}</p>
-              <p className="muted" style={{ fontSize: 12 }}>
-                Sources —{' '}
-                {item.card.sources.map((source, i) => (
-                  <span key={source.id}>
-                    {i > 0 && ' · '}
-                    <a href={source.url} target="_blank" rel="noreferrer">
-                      {source.title}
-                    </a>
-                  </span>
-                ))}
-              </p>
-              <div className="row">
-                {item.completed ? (
-                  <span className="badge ready">done</span>
-                ) : (
-                  <>
-                    <button disabled={busy === key} onClick={() => void answer(item, 'again')}>
-                      Needed review
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={busy === key}
-                      onClick={() => void answer(item, 'good')}
-                    >
-                      Knew it
-                    </button>
-                  </>
-                )}
-                {keepButton(item, item.card.card.id)}
-              </div>
-            </article>
-          );
-        }
-
-        const question = item.question;
-        const chosen = answered[question.id];
-        const revealed = chosen !== undefined || item.completed;
-
-        return (
-          <article key={key} className="panel">
-            <p style={{ fontWeight: 600, marginTop: 0, marginBottom: 12 }}>{question.stem}</p>
-            <ul className="list" style={{ gap: 4 }}>
-              {question.options.map((option) => {
-                const picked = chosen === option.id;
-                const mark = !revealed ? '' : option.isCorrect ? ' ✓' : picked ? ' ✗' : '';
-                return (
-                  <li key={option.id} style={{ padding: 0 }}>
-                    <button
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        opacity: revealed && !option.isCorrect && !picked ? 0.6 : 1,
-                      }}
-                      disabled={revealed || busy === key}
-                      onClick={() => {
-                        setAnswered({ ...answered, [question.id]: option.id });
-                        void answer(item, ratingForQuestion(option.isCorrect));
-                      }}
-                    >
-                      {option.text}
-                      {mark}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {revealed && (
-              <>
-                <p className="card-body" style={{ marginTop: 12 }}>
-                  {question.explanation}
-                </p>
-                <div className="row">{keepButton(item, question.id)}</div>
-              </>
-            )}
-          </article>
-        );
-      })}
+      {groupDay(set.items).map((group) => (
+        <section key={group.key} className="day-group">
+          {group.card && renderCard(group.card)}
+          {group.questions.map((q) => renderQuestion(q))}
+        </section>
+      ))}
     </div>
   );
+
+  function renderCard(item: Extract<DailySetEntry, { kind: 'card' }>): React.JSX.Element {
+    {
+      const itemId = item.card.card.id;
+      const key = `card:${String(itemId)}`;
+      {
+        return (
+          <article key={key} className="panel">
+            <h3 style={{ marginTop: 0 }}>{item.card.card.title}</h3>
+            <p className="card-body">{item.card.card.bodyMd}</p>
+            <p className="muted" style={{ fontSize: 12 }}>
+              Sources —{' '}
+              {item.card.sources.map((source, i) => (
+                <span key={source.id}>
+                  {i > 0 && ' · '}
+                  <a href={source.url} target="_blank" rel="noreferrer">
+                    {source.title}
+                  </a>
+                </span>
+              ))}
+            </p>
+            <div className="row">
+              {item.completed ? (
+                <span className="badge ready">done</span>
+              ) : (
+                <>
+                  <button disabled={busy === key} onClick={() => void answer(item, 'again')}>
+                    Needed review
+                  </button>
+                  <button
+                    className="primary"
+                    disabled={busy === key}
+                    onClick={() => void answer(item, 'good')}
+                  >
+                    Knew it
+                  </button>
+                </>
+              )}
+              {keepCardButton(item.card.card.id)}
+            </div>
+          </article>
+        );
+      }
+    }
+  }
+
+  function renderQuestion(item: Extract<DailySetEntry, { kind: 'question' }>): React.JSX.Element {
+    const question = item.question;
+    const key = `question:${String(question.id)}`;
+    const chosen = answered[question.id];
+    const revealed = chosen !== undefined || item.completed;
+
+    return (
+      <article key={key} className="panel question-of">
+        <p style={{ fontWeight: 600, marginTop: 0, marginBottom: 12 }}>{question.stem}</p>
+        <ul className="list" style={{ gap: 4 }}>
+          {question.options.map((option) => {
+            const picked = chosen === option.id;
+            const mark = !revealed ? '' : option.isCorrect ? ' ✓' : picked ? ' ✗' : '';
+            return (
+              <li key={option.id} style={{ padding: 0 }}>
+                <button
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    opacity: revealed && !option.isCorrect && !picked ? 0.6 : 1,
+                  }}
+                  disabled={revealed || busy === key}
+                  onClick={() => {
+                    setAnswered({ ...answered, [question.id]: option.id });
+                    void answer(item, ratingForQuestion(option.isCorrect));
+                  }}
+                >
+                  {option.text}
+                  {mark}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {revealed && (
+          <>
+            <p className="card-body" style={{ marginTop: 12 }}>
+              {question.explanation}
+            </p>
+            {/* Both after the answer, not before: a verdict on a question the reader has not
+                engaged with yet is not a verdict worth recording. */}
+            <div className="row question-actions">
+              {keepQuestionButton(question.id)}
+              <FlagMenu onFlag={(reason, target) => void flag(question.id, reason, target)} />
+            </div>
+          </>
+        )}
+      </article>
+    );
+  }
 }

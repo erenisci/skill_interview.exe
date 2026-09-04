@@ -33,6 +33,18 @@ export interface DailySetCounts {
   readonly questions: number;
 }
 
+/**
+ * What one skill contributes when it sets nothing of its own.
+ *
+ * There is no global "cards per day" any more. A day is what the user's skills add up to,
+ * which is the shape the product actually has: adding a skill should make tomorrow bigger,
+ * and a number divided among skills made every new skill shrink every other one.
+ *
+ * One card and two questions is a deliberately light default — four skills is a six-item
+ * day, which is a few minutes.
+ */
+export const PER_SKILL_DEFAULTS = { cards: 1, questions: 2 } as const;
+
 export interface DailySetLimits {
   readonly cards: SkillLimits;
   readonly questions: SkillLimits;
