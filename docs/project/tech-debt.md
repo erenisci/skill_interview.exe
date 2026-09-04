@@ -207,34 +207,31 @@ actually asks for works.
 **Remediation.** Add a real `Tray` with an icon once the app has one — the same icon M-8's Windows installer needs,
 so this is naturally M-8 work rather than a separate pass.
 
-### TD-17 — A sign-in page can still produce a card
+### TD-17 — A sign-in page can still produce a card — RESOLVED
 
-**What.** Measured 2026-09-04 (`npm run eval`, refusal set): of two pages with no article behind them, the cookie
-banner was correctly refused and the sign-in wall was not — the model wrote a card about Redis from a page that
-contains no Redis at all. Refusal rate 50%.
-**Why it exists.** Refusal is currently enforced by length, not by grounding: `synthesizePrimer` rejects a body under
-`MIN_BODY_CHARS`. A cookie banner produces too little to pass that bar; a sign-in wall has enough words in it that the
-model can fill the space, and what fills it comes from its own memory rather than the page.
-**Cost.** The exact failure the product's first rule exists to prevent — a fluent, confident card with no source
-behind it. It is worse than a visible failure precisely because it looks like a success.
-**Contained by.** Nothing. Length is a proxy for grounding and this is where the proxy breaks.
-**Remediation.** The prompt already says to report gaps rather than fill them; that is not enough on its own. The
-candidate fix is a cheap deterministic pre-check — a page whose extracted text never mentions the skill is not
-material about that skill — applied before synthesis rather than after. Measure it against this set rather than
-assuming it works.
+**What.** Measured 2026-09-04: of two pages with no article behind them, only the cookie banner was refused. The
+sign-in wall produced a fluent card about Redis from a page containing no Redis at all. Refusal rate 50%.
+**Why it happened.** Refusal was enforced by length, not by grounding. A cookie banner is too short to clear
+`MIN_BODY_CHARS`; a sign-in wall has enough words that the model can fill the space — and what filled it came from
+its own memory.
+**Fix.** `sourceMentionsSkill` in `src/main/util/language.ts`, checked **before** the model is called rather than
+after: text that never names the technology is not material about it. A prefix match, on the same reasoning as the
+name gate, so a page writing "Postgres" still counts for "PostgreSQL".
+**Now.** Refusal rate 100% (2/2), both with the code `source-not-about-skill`. The check also saves a model call on
+material that was never usable.
+**Left behind.** The research tests' fixtures were unrealistic — their source text never named its subject, so the
+guard rejected them. Real retrieved text names what it is about; the fixtures now do too.
 
-### TD-18 — Turkish is requested and English is delivered
+### TD-18 — Turkish is requested and English is delivered — RESOLVED
 
-**What.** Measured 2026-09-04 (`npm run eval`, language set): both Turkish cases came back as English prose. Language
-accuracy 33% — the only pass was the English case. Technical terms survived untranslated in all three, so the term
-rule works; the language rule does not.
-**Why it exists.** The language is passed as a prompt parameter (`LANGUAGE: Turkish`) and nothing enforces it. A 4B
-model with an English source in front of it and an English system preamble above it follows the weight of the
-context rather than one line of instruction.
-**Cost.** Turkish is one of the two content languages the product offers ([FR-61](../product/requirements-functional.md)).
-Offering a language that silently returns another one is worse than not offering it.
-**Contained by.** Nothing yet. The setting is selectable and the output is wrong.
-**Remediation.** Unmeasured options, in rough order of cost: state the language requirement last rather than first in
-the prompt, since recency wins under constrained decoding; move it into the system preamble; or reject non-matching
-output in `synthesizePrimer` the way length is rejected, using the same detector the eval scores with. The detector
-already exists and is tested — reusing it as a runtime guard costs almost nothing.
+**What.** Measured 2026-09-04: both Turkish cases came back as English prose. Language accuracy 33%.
+**Why it happened.** The language instruction sat in the middle of `primer-card.v1`, with thousands of tokens of
+English source material between it and the point of generation. Constrained decoding leaves no room to reconsider,
+so the model followed the weight of its context rather than one line of instruction.
+**Fix, in two parts.** `primer-card.v2` moves the requirement to the very end and says outright that the source's
+own language does not decide the output's. And `synthesizePrimer` now rejects a card that comes back in the wrong
+language, using `looksLike` — the same function the eval scores with, so the guard and its metric cannot drift.
+**Now.** Language accuracy 100% (3/3), terms untranslated 100% (3/3). The guard has not had to fire since the prompt
+change, which is the order these belong in: fix the cause, keep the backstop.
+**Worth remembering.** Placement beat instruction strength. v1 already said "Write in Turkish"; it was simply too far
+from where the decision was made.

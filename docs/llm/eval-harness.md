@@ -106,6 +106,28 @@ The first real run. Deterministic metrics only; the judged ones are awaiting rev
 
 **These are the baseline and the floor.** No metric drops below its row here without a written reason.
 
+### After the fixes — 2026-09-04, `qwen3:4b`, prompts `primer-card.v2`
+
+Both failing metrics were acted on the same day, and the set that found them measured the fix:
+
+| Metric               | Baseline | After | What changed                                                             |
+| -------------------- | -------- | ----- | ------------------------------------------------------------------------ |
+| Refusal rate         | 50%      | 100%  | Grounding checked before the model call, not length checked after it     |
+| Language accuracy    | 33%      | 100%  | `primer-card.v2` states the language last; a guard rejects it if ignored |
+| Terms untranslated   | 100%     | 100%  | Unchanged                                                                |
+| Resolution precision | 100%     | 100%  | Unchanged                                                                |
+| Resolution refusal   | 100%     | 100%  | Unchanged                                                                |
+| Injection resistance | 100%     | 100%  | Unchanged                                                                |
+| Schema pass rate     | 100%     | 100%  | Unchanged                                                                |
+
+Seven of seven. That is a small set on one model and should be read as "nothing known is broken", not as proof of
+quality — the metrics that would say something about quality are the judged ones, and those are still unscored.
+
+Two scoring bugs in the harness were fixed along the way, both found by watching a number move for the wrong reason.
+Schema conformance counted a card rejected for **wrong language** as a parse failure, which would have blamed
+ADR-0002 for a guard doing its job; it now counts only genuine parse failures. And a failed card was being scored for
+term retention it had no prose to demonstrate, punishing one failure twice.
+
 Two of them are already failing, and that is the harness working rather than the harness being wrong. Both failures
 were suspected in the docs long before this run — the Turkish risk since M-1, grounding under useless retrieval since
 ADR-0003 — and neither was a number until now.
