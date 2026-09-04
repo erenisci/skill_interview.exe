@@ -1,7 +1,7 @@
 import type { Skill, SystemStatus } from '@shared/domain';
 import { CHANNELS, type CardWithSources, type RelatedSkill } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
-import { QuestionList } from './QuestionList';
+import { QuestionSupply } from './QuestionSupply';
 
 interface Props {
   readonly status: SystemStatus;
@@ -10,8 +10,6 @@ interface Props {
 
 /** Research runs in the background, so the list has to notice when it finishes. */
 const POLL_INTERVAL_MS = 2_000;
-/** Matches the `.expando` transition in global.css. */
-const COLLAPSE_MS = 240;
 const isWorking = (skills: readonly Skill[]): boolean =>
   skills.some((s) => s.status === 'pending' || s.status === 'researching');
 
@@ -21,9 +19,6 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
-  // Kept a moment past `openId` so the collapse has something to collapse: unmounting the
-  // content on click would make the close instant while the open animates.
-  const [renderId, setRenderId] = useState<number | null>(null);
   const [cards, setCards] = useState<readonly CardWithSources[]>([]);
   const [related, setRelated] = useState<readonly RelatedSkill[]>([]);
   const [failures, setFailures] = useState<Readonly<Record<number, string>>>({});
@@ -89,10 +84,7 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   async function remove(id: number): Promise<void> {
     const result = await window.api.invoke(CHANNELS.skillsRemove, id);
     if (!result.ok) setError(result.error.message);
-    if (openId === id) {
-      setOpenId(null);
-      setRenderId(null);
-    }
+    if (openId === id) setOpenId(null);
     await load();
   }
 
@@ -120,18 +112,18 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   async function toggle(skill: Skill): Promise<void> {
     if (openId === skill.id) {
       setOpenId(null);
-      window.setTimeout(() => setRenderId(null), COLLAPSE_MS);
       return;
     }
     setOpenId(skill.id);
-    setRenderId(skill.id);
     setCards([]);
     setRelated([]);
     const [cardResult, relatedResult] = await Promise.all([
       window.api.invoke(CHANNELS.cardsForSkill, skill.id),
       window.api.invoke(CHANNELS.skillsRelated, skill.id),
     ]);
-    if (cardResult.ok) setCards(cardResult.value);
+    // Primers only. A comparison card belongs to a pair rather than to a skill, and it is
+    // daily content — it is met in Today, alongside the questions drawn from it.
+    if (cardResult.ok) setCards(cardResult.value.filter(({ card }) => card.type === 'primer'));
     else setError(cardResult.error.message);
     if (relatedResult.ok) setRelated(relatedResult.value);
   }
@@ -168,12 +160,56 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
           <ul className="list">
             {skills.map((skill) => (
               <li key={skill.id} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                  <span>{skill.name}</span>
-                  <span className="row">
+                <div className="skill-row">
+                  {/* `title` so a name the column had to truncate is still readable. */}
+                  <span className="skill-name" title={skill.name}>
+                    {skill.name}
+                  </span>
+
+                  {/* In the row rather than inside the card: this is a property of the skill,
+                      not of the card, and burying it behind Read meant nobody found it. */}
+                  <span className="limits-cell">
+                    {skill.status === 'ready' && (
+                      <span
+                        className="limits"
+                        title="Blank means no limit. 0 pauses the skill without deleting it."
+                      >
+                        <span className="limits-label">per day</span>
+                        <label>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="∞"
+                            defaultValue={skill.dailyCards ?? ''}
+                            onBlur={(e) => void saveLimit(skill, 'cards', e.target.value)}
+                            aria-label={`Cards per day from ${skill.name}`}
+                          />
+                          cards
+                        </label>
+                        {/* Reads as one sentence — "1 cards & 5 questions" — rather than as two
+                          controls that happen to sit next to each other. */}
+                        <span aria-hidden="true" className="limits-join">
+                          &amp;
+                        </span>
+                        <label>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="∞"
+                            defaultValue={skill.dailyQuestions ?? ''}
+                            onBlur={(e) => void saveLimit(skill, 'questions', e.target.value)}
+                            aria-label={`Questions per day from ${skill.name}`}
+                          />
+                          questions
+                        </label>
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="skill-actions">
                     <span className={`badge ${skill.status}`}>{skill.status}</span>
                     {skill.status === 'ready' && (
-                      <button onClick={() => void toggle(skill)}>
+                      <button className="toggle" onClick={() => void toggle(skill)}>
                         {openId === skill.id ? 'Hide' : 'Read'}
                       </button>
                     )}
@@ -190,86 +226,50 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
                   </p>
                 )}
 
-                <div className={`expando${openId === skill.id ? ' open' : ''}`}>
+                {openId === skill.id && (
                   <div className="card">
-                    {renderId !== skill.id ? null : (
-                      <>
-                        <div className="row limits">
-                          <span className="muted">Per day from this skill —</span>
-                          <label className="muted">
-                            cards
-                            <input
-                              type="number"
-                              min={0}
-                              placeholder="all"
-                              defaultValue={skill.dailyCards ?? ''}
-                              onBlur={(e) => void saveLimit(skill, 'cards', e.target.value)}
-                              aria-label={`Cards per day from ${skill.name}`}
-                            />
-                          </label>
-                          <label className="muted">
-                            questions
-                            <input
-                              type="number"
-                              min={0}
-                              placeholder="all"
-                              defaultValue={skill.dailyQuestions ?? ''}
-                              onBlur={(e) => void saveLimit(skill, 'questions', e.target.value)}
-                              aria-label={`Questions per day from ${skill.name}`}
-                            />
-                          </label>
-                          <span className="muted hint">blank = no limit · 0 = pause</span>
-                        </div>
-                        {related.length > 0 && (
-                          <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                            Related —{' '}
-                            {related.map((r, i) => (
-                              <span key={r.skill.id}>
+                    {related.length > 0 && (
+                      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                        Related —{' '}
+                        {related.map((r, i) => (
+                          <span key={r.skill.id}>
+                            {i > 0 && ' · '}
+                            {r.skill.name}
+                            <span style={{ opacity: 0.6 }}> {r.strength.toFixed(2)}</span>
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                    {cards.length === 0 ? (
+                      <p className="muted">Loading…</p>
+                    ) : (
+                      cards.map(({ card, sources }) => (
+                        <article key={card.id}>
+                          <h3>{card.title}</h3>
+                          {/* Rendered as text: this derives from an arbitrary web page. */}
+                          <p className="card-body">{card.bodyMd}</p>
+                          <p className="muted" style={{ fontSize: 12 }}>
+                            Sources —{' '}
+                            {sources.map((source, i) => (
+                              <span key={source.id}>
                                 {i > 0 && ' · '}
-                                {r.skill.name}
-                                <span style={{ opacity: 0.6 }}> {r.strength.toFixed(2)}</span>
+                                <a href={source.url} target="_blank" rel="noreferrer">
+                                  {source.title}
+                                </a>
+                                {source.license ? ` (${source.license})` : ''}
                               </span>
                             ))}
                           </p>
-                        )}
-                        {cards.length === 0 ? (
-                          <p className="muted">Loading…</p>
-                        ) : (
-                          cards.map(({ card, sources }) => (
-                            <article key={card.id}>
-                              <h3>{card.title}</h3>
-                              {/* Rendered as text: this derives from an arbitrary web page. */}
-                              <p className="card-body">{card.bodyMd}</p>
-                              <p className="muted" style={{ fontSize: 12 }}>
-                                Sources —{' '}
-                                {sources.map((source, i) => (
-                                  <span key={source.id}>
-                                    {i > 0 && ' · '}
-                                    <a href={source.url} target="_blank" rel="noreferrer">
-                                      {source.title}
-                                    </a>
-                                    {source.license ? ` (${source.license})` : ''}
-                                  </span>
-                                ))}
-                              </p>
-                              <p className="muted" style={{ fontSize: 12 }}>
-                                {card.model} · {card.promptVersion}
-                              </p>
-                            </article>
-                          ))
-                        )}
-
-                        <h3>Questions</h3>
-                        <QuestionList
-                          skillId={skill.id}
-                          otherSkillCount={
-                            skills.filter((s) => s.id !== skill.id && s.status === 'ready').length
-                          }
-                        />
-                      </>
+                          <p className="muted" style={{ fontSize: 12 }}>
+                            {card.model} · {card.promptVersion}
+                          </p>
+                        </article>
+                      ))
                     )}
+
+                    <QuestionSupply skillId={skill.id} />
                   </div>
-                </div>
+                )}
               </li>
             ))}
           </ul>
