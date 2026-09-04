@@ -12,33 +12,7 @@ import { appError, err, ok, type Result } from '@shared/result';
  * and the user is told which field was wrong ([configuration.md](../../../docs/operations/configuration.md)).
  */
 
-/** Days can be zero — a user who wants only questions sets cards to 0, deliberately. */
-const MAX_DAILY_ITEMS = 50;
-
 const TIME = /^([01]?\d|2[0-3]):([0-5]\d)$/;
-
-function count(key: string, value: string): Result<string> {
-  // `Number('')` is 0, so an empty field would silently mean "none today" rather than
-  // being refused — a cleared input is a mistake, not a choice to review nothing.
-  if (value.trim().length === 0) {
-    return err(appError('validation', `bad-${key}`, `${key} cannot be empty`));
-  }
-
-  const parsed = Number(value.trim());
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return err(appError('validation', `bad-${key}`, `${key} must be a whole number, zero or more`));
-  }
-  if (parsed > MAX_DAILY_ITEMS) {
-    return err(
-      appError(
-        'validation',
-        `bad-${key}`,
-        `${key} above ${String(MAX_DAILY_ITEMS)} is not a day's work`,
-      ),
-    );
-  }
-  return ok(String(parsed));
-}
 
 /**
  * Returns the value to store, or the reason it was refused. Unknown keys pass through:
@@ -48,10 +22,6 @@ export function validateSetting(key: string, rawValue: string): Result<string> {
   const value = rawValue.trim();
 
   switch (key) {
-    case 'daily_cards':
-    case 'daily_questions':
-      return count(key, value);
-
     case 'reminder_time': {
       const match = TIME.exec(value);
       if (!match) {

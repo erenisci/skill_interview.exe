@@ -1,6 +1,6 @@
-import { app, Menu, Notification, Tray, nativeImage } from 'electron';
-import { join } from 'node:path';
+import { Menu, Notification, Tray, nativeImage } from 'electron';
 import type { AppContext } from '../context';
+import { iconPath } from '../util/assets';
 import { localDateString } from '../util/date';
 import { log } from '../util/logger';
 import { isReminderDue } from './reminder';
@@ -28,13 +28,7 @@ export interface ReminderDeps extends Pick<AppContext, 'settings' | 'reviews'> {
  * ([TD-16](../../../docs/project/tech-debt.md)).
  */
 function createTray(onOpen: () => void, onQuit: () => void): Tray {
-  // In development the icon sits in the repository; in a packaged build it is unpacked
-  // beside the app, which is what `resources` resolves to at runtime.
-  const iconPath = app.isPackaged
-    ? join(process.resourcesPath, 'icon.png')
-    : join(app.getAppPath(), 'resources', 'icon.png');
-
-  const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
+  const tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 }));
   tray.setToolTip('skill_interview.exe');
   tray.setContextMenu(
     Menu.buildFromTemplate([

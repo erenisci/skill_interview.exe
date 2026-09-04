@@ -18,8 +18,6 @@ interface Props {
  */
 
 const KEYS = [
-  'daily_cards',
-  'daily_questions',
   'reminder_enabled',
   'reminder_time',
   'close_to_tray',
@@ -117,38 +115,16 @@ export function SettingsView({ status, onChanged }: Props): React.JSX.Element {
       )}
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Daily set</h3>
-
-        {field(
-          'daily_cards',
-          'Cards per day',
-          'How many cards the daily set draws. Zero is allowed if you only want questions.',
-          <input
-            type="number"
-            min={0}
-            defaultValue={values.daily_cards ?? ''}
-            onBlur={(e) => void save('daily_cards', e.target.value)}
-            aria-label="Cards per day"
-          />,
-        )}
-
-        {field(
-          'daily_questions',
-          'Questions per day',
-          'Each skill produces at most five questions, so one researched skill can fill this on its own.',
-          <input
-            type="number"
-            min={0}
-            defaultValue={values.daily_questions ?? ''}
-            onBlur={(e) => void save('daily_questions', e.target.value)}
-            aria-label="Questions per day"
-          />,
-        )}
+        <h3 style={{ marginTop: 0 }}>Daily reminder</h3>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          A desktop notification, sent only when the day’s set is still unfinished. It needs the app
+          to be running — which is what the setting below is for.
+        </p>
 
         {field(
           'reminder_enabled',
           'Remind me',
-          'A notification, only if the day’s set is still unfinished.',
+          'Nothing is sent on a day you have already finished.',
           <div className="row">
             <input
               type="checkbox"
@@ -165,6 +141,15 @@ export function SettingsView({ status, onChanged }: Props): React.JSX.Element {
             />
           </div>,
         )}
+      </div>
+
+      <div className="panel">
+        <h3 style={{ marginTop: 0 }}>Windows</h3>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          How much each skill contributes to a day is set on that skill, under{' '}
+          <strong>Skills</strong>— a day is what your skills add up to, not a number divided among
+          them.
+        </p>
 
         {field(
           'launch_at_startup',

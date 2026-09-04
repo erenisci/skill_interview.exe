@@ -49,8 +49,32 @@ button {
   cursor: pointer;
 }
 
+button {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+/* The old rule moved the border colour only, which on a dark surface is close to invisible. */
 button:hover:not(:disabled) {
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+  color: var(--text);
+}
+
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 82%, white);
+  color: var(--accent-ink);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -163,11 +187,21 @@ code {
 }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  height: 26px;
+  padding: 0 12px;
   font-size: 12px;
-  padding: 2px 9px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   border-radius: 20px;
   border: 1px solid var(--border);
   color: var(--muted);
+  /* The status is one word from a fixed set, so capitalising in CSS keeps the stored value
+     lowercase and the label readable without a lookup table in the view. */
+  text-transform: capitalize;
 }
 
 .badge.pending {
@@ -233,59 +267,249 @@ pre.commands {
 }
 
 /**
- * The expanding card on the Skills page.
+ * "Read" and "Hide" are the same length and still different widths, because a proportional
+ * font gives no two words the same advance. Without a floor the button resizes on every
+ * toggle and drags `Remove` sideways with it, which is movement the eye reads as the page
+ * flinching.
  *
- * `grid-template-rows: 0fr → 1fr` rather than a height transition, because the content's
- * height is not known in advance and `height: auto` does not animate. The inner element
- * carries the `overflow: hidden` and a `min-height: 0`, without which a grid child refuses
- * to shrink below its content and nothing collapses.
+ * A floor rather than a fixed width, so the button still grows if the label ever changes.
  */
-.expando {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 160ms ease;
+button.toggle {
+  min-width: 76px;
 }
 
-.expando.open {
-  grid-template-rows: 1fr;
-  opacity: 1;
+/**
+ * The actions keep their place whether or not a skill is still being researched. `Read`
+ * only exists once a skill is ready, and without a reserved width every row in the list
+ * shifted as its neighbours finished.
+ */
+.skill-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-.expando > * {
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Someone who has asked for less motion gets the state change without the movement. */
-@media (prefers-reduced-motion: reduce) {
-  .expando {
-    transition: none;
-  }
-}
-
-/* Per-skill daily limits, on the expanded skill. */
+/**
+ * Per-skill daily limits, sitting in the skill's own row.
+ *
+ * They were inside the expanded card, which is the wrong place twice over: it is a property
+ * of the skill rather than of the card, and it meant nobody found it without pressing Read.
+ * The row already had the empty space.
+ *
+ * The number sits before its noun — "1 cards" reads as a quantity, where "cards 1" reads as
+ * a label someone forgot to finish.
+ */
 .limits {
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.limits-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  opacity: 0.75;
 }
 
 .limits label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+}
+
+/* Tighter than the pill's own gap, so the two halves read as one phrase joined by it
+   rather than as three evenly spaced things. */
+.limits-join {
+  margin: 0 -4px;
+  opacity: 0.6;
 }
 
 .limits input {
-  width: 68px;
-  padding: 4px 8px;
+  width: 46px;
+  padding: 3px 6px;
+  font-size: 12px;
+  text-align: center;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+/* The native spinner steals a third of a 46px field and is unusable at this size. */
+.limits input::-webkit-inner-spin-button,
+.limits input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.limits input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* A blank field means "no limit", so the placeholder has to look like a value rather than
+   like a hint the user is expected to replace. */
+.limits input::placeholder {
+  color: var(--muted);
+  opacity: 0.55;
+}
+
+/**
+ * The skill row is a grid, not a flex row.
+ *
+ * With `space-between` the leftover space depended on how long the name was, so every row
+ * put its controls somewhere slightly different and the list read as ragged. Three fixed
+ * columns line them up down the page whatever the names are.
+ *
+ * The middle column is `minmax(0, 1fr)` rather than `auto`: `auto` would let a long name
+ * push the controls around, which is the problem being solved.
+ */
+.skill-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+/**
+ * The name is what the eye lands on first, and it is truncated rather than allowed to set
+ * the column's width — one long entry would otherwise move every control on every row.
+ * `min-width: 0` is what actually permits a grid item to shrink below its content.
+ */
+.skill-name {
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Always present, even before a skill is ready, so the actions never slide left into the
+   column the controls will occupy a moment later. */
+.limits-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Kept items are grouped by skill; the heading names the group and counts it. */
+.group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 26px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group-heading span {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+section:first-of-type .group-heading {
+  margin-top: 6px;
+}
+
+/**
+ * A day reads as material then questions: the card, then what it asks, as one block with a
+ * visible edge. Without the rule down the left the questions look like separate cards that
+ * happen to follow.
+ */
+.day-group {
+  margin-bottom: 26px;
+}
+
+.day-group .question-of {
+  margin-left: 22px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* A group with no card of its own — its questions are due while the card is not — has no
+   rule to hang from, so it is not indented either. */
+.day-group:has(> .question-of:first-child) .question-of {
+  margin-left: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+button.keep {
+  padding: 4px 10px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Keep and flag sit together under a revealed question, and the flag is the quieter of the
+   two — most questions do not need reporting. */
+.question-actions {
+  margin-top: 12px;
+  gap: 10px;
+}
+
+button.flag {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+}
+
+button.flag:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  background: transparent;
+}
+
+.flag-menu {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+}
+
+.flag-menu p {
+  margin: 0 0 8px;
   font-size: 12px;
 }
 
-.limits .hint {
-  opacity: 0.7;
+.flag-menu .list {
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+/* A kept item names every skill it is about. The one whose group you are reading is picked
+   out, so a comparison found under Java still shows the other side without implying you are
+   looking at that group. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.tag {
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tag.here {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }

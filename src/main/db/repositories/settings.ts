@@ -9,14 +9,9 @@ import type { Db } from '../index';
  */
 export const SETTING_DEFAULTS: Readonly<Record<string, string>> = {
   ollama_url: 'http://localhost:11434',
-  // Counts and reminder time were TBD until M-5 needed real numbers to assemble against
-  // (docs/operations/configuration.md). 3 cards + 5 questions is a deliberately light
-  // daily load — TARGET_QUESTIONS in pipeline/questions.ts already caps a skill at 5, so
-  // one skill's full set fills the question side on its own. 18:00 is an ordinary
-  // after-work time; there is nothing more principled behind it than that, and it is the
-  // first thing to change once real use says otherwise.
-  daily_cards: '3',
-  daily_questions: '5',
+  // How much a day holds is no longer a global number: it is summed from what each skill
+  // contributes (`PER_SKILL_DEFAULTS` in scheduler/daily-set.ts). 18:00 is an ordinary
+  // after-work time, with nothing more principled behind it than that.
   reminder_enabled: 'true',
   reminder_time: '18:00',
   // On by default because the reminder only exists while the app does: a product whose

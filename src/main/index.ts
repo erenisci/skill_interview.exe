@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createContext, type AppContext } from './context';
 import { registerIpc } from './ipc';
 import { startReminder } from './notify';
+import { iconPath } from './util/assets';
 import { resolveDataDir } from './util/data-dir';
 import { log } from './util/logger';
 
@@ -49,6 +50,11 @@ function createWindow(): BrowserWindow {
     // Matches --bg in the renderer stylesheet, so the first paint is not a white flash.
     backgroundColor: '#0d1117',
     title: 'skill_interview.exe',
+    // Without this the window and taskbar show Electron's default gear. A packaged build
+    // takes its icon from the executable, so this is what a development run needs — but it
+    // is set unconditionally, because an app that looks like Electron while you are
+    // building it is an app you stop noticing the icon of.
+    icon: iconPath(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // Non-negotiable: the renderer displays text derived from arbitrary web pages
@@ -116,7 +122,20 @@ function focusMainWindow(): void {
   }
 }
 
+/**
+ * Windows will not show a notification from a process it cannot identify.
+ *
+ * Electron's `Notification` silently does nothing on Windows unless the AppUserModelID is
+ * set and matches the one the installer registered — so the reminder, the one feature that
+ * makes this a daily habit, was firing into nothing. It has to match `appId` in
+ * `electron-builder.yml`, which is why the string is duplicated with that warning attached
+ * rather than imported from somewhere clever: the build config is YAML the main process
+ * cannot read at run time.
+ */
+const APP_USER_MODEL_ID = 'dev.erenisci.skill-interview';
+
 app.whenReady().then(() => {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
   // The resolved path is never logged below: the default `userData` path contains the
   // Windows username, which the logging rules forbid outright regardless of build mode
   // (docs/operations/logging.md). `source` alone is enough to tell a stray override from a

@@ -14,35 +14,6 @@ function refused(key: string, value: string): string {
   return result.error.code;
 }
 
-describe('daily counts', () => {
-  it('accepts a whole number', () => {
-    expect(accepted('daily_cards', '3')).toBe('3');
-    expect(accepted('daily_questions', '10')).toBe('10');
-  });
-
-  it('accepts zero — wanting only questions is a real choice', () => {
-    expect(accepted('daily_cards', '0')).toBe('0');
-  });
-
-  it('trims rather than refusing over whitespace', () => {
-    expect(accepted('daily_cards', ' 4 ')).toBe('4');
-  });
-
-  it('refuses text, fractions and negatives', () => {
-    expect(refused('daily_cards', 'lots')).toBe('bad-daily_cards');
-    expect(refused('daily_cards', '2.5')).toBe('bad-daily_cards');
-    expect(refused('daily_cards', '-1')).toBe('bad-daily_cards');
-  });
-
-  it('refuses a count no one could work through in a day', () => {
-    expect(refused('daily_questions', '5000')).toBe('bad-daily_questions');
-  });
-
-  it('refuses an empty value instead of storing a silent default', () => {
-    expect(refused('daily_cards', '')).toBe('bad-daily_cards');
-  });
-});
-
 describe('reminder_time', () => {
   it('accepts a 24-hour time', () => {
     expect(accepted('reminder_time', '18:00')).toBe('18:00');
