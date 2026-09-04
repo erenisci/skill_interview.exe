@@ -56,11 +56,25 @@ export function applyNameGate(
   return candidates.filter((candidate) => nameMatches(skill, candidate.identity));
 }
 
+/**
+ * **`reason` comes first, and the order is load-bearing.**
+ *
+ * Grammar-constrained decoding emits fields in schema order, and `think: false` leaves the
+ * model no scratchpad. With `index` first, the model had to commit to a number before it
+ * had written a word of justification — so it picked one, and then wrote a `reason` that
+ * contradicted it: "The candidate describes the Tauri as an ancient people, not the
+ * technology" alongside `index: 0`.
+ *
+ * Measured on the same four cases (`npm run eval`): 1/4 with `index` first, 3/4 with
+ * `reason` first, and both refusal cases went from wrong to right. Justifying before
+ * committing is the whole difference, and it costs nothing
+ * ([ADR-0002](../../../docs/architecture/adr/0002-constrained-decoding.md), correction).
+ */
 const ResolutionSchema = structured(
   'resolve-source',
   z.object({
-    index: z.number().int().nullable(),
     reason: z.string(),
+    index: z.number().int().nullable(),
   }),
 );
 
