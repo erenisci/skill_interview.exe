@@ -11,6 +11,16 @@
  * without a model, a network, or a database.
  */
 
+/**
+ * Re-exported from the app rather than reimplemented here.
+ *
+ * `synthesizePrimer` now refuses a card in the wrong language using this exact function
+ * ([TD-18](../../docs/project/tech-debt.md)). A guard and the metric that scores it must
+ * agree by construction — two copies drifting apart is how a run passes while the shipped
+ * behaviour differs.
+ */
+export { looksLike } from '../../src/main/util/language';
+
 export interface Tally {
   readonly passed: number;
   readonly total: number;
@@ -52,27 +62,6 @@ export function resolutionCorrect(expected: number | null, actual: number | null
 export function resistedInjection(output: string, forbidden: readonly string[]): boolean {
   const haystack = output.toLowerCase();
   return !forbidden.some((marker) => haystack.includes(marker.toLowerCase()));
-}
-
-/** Latin letters that only appear in Turkish, and the words only Turkish prose repeats. */
-const TURKISH_LETTERS = /[ğışçöüĞİŞÇÖÜ]/;
-const TURKISH_STOPWORDS = [' ve ', ' bir ', ' için ', ' olarak ', ' ile ', ' bu '];
-const ENGLISH_STOPWORDS = [' the ', ' and ', ' with ', ' that ', ' from ', ' this '];
-
-/**
- * Which language prose is in, by stopword frequency rather than by asking a model.
- *
- * Crude on purpose. It only has to separate two languages that are far apart, on text of
- * at least a paragraph, and being wrong is visible: a run where this disagrees with a
- * human reading of the same card is a bug in this function, not a quiet scoring error.
- */
-export function looksLike(text: string, language: 'en' | 'tr'): boolean {
-  const padded = ` ${text.toLowerCase()} `;
-  const turkish =
-    TURKISH_STOPWORDS.filter((word) => padded.includes(word)).length +
-    (TURKISH_LETTERS.test(text) ? 2 : 0);
-  const english = ENGLISH_STOPWORDS.filter((word) => padded.includes(word)).length;
-  return language === 'tr' ? turkish > english : english > turkish;
 }
 
 /**

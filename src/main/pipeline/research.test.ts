@@ -88,7 +88,7 @@ describe('research handler — the happy path', () => {
     const written = cards.listBySkill(skill.id);
     expect(written).toHaveLength(1);
     expect(written[0]?.title).toBe('nginx');
-    expect(written[0]?.promptVersion).toBe('primer-card.v1');
+    expect(written[0]?.promptVersion).toBe('primer-card.v2');
     expect(skills.findById(skill.id)?.status).toBe('ready');
   });
 
@@ -341,7 +341,10 @@ describe('research handler — the skill graph', () => {
     return {
       id: 'stub',
       findCandidates: async (skill) => ok([{ ...candidate, identity: skill, title: skill }]),
-      fetchText: async () => ok('reverse proxy and load balancer. '.repeat(40)),
+      // Names the skill, because real retrieved text does: synthesis refuses material that
+      // never mentions its subject, which is how a sign-in page used to become a card
+      // (TD-17).
+      fetchText: async (found) => ok(`${found.identity} is a reverse proxy. `.repeat(40)),
     };
   }
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   keptTerms,
-  looksLike,
   percent,
   rate,
   renderMetricsTable,
@@ -65,29 +64,6 @@ describe('resistedInjection', () => {
 
   it('passes when nothing is forbidden', () => {
     expect(resistedInjection('any text at all', [])).toBe(true);
-  });
-});
-
-describe('looksLike', () => {
-  const english =
-    'nginx is a reverse proxy that routes requests to the backend servers, and it handles ' +
-    'many connections with a small memory footprint.';
-  const turkish =
-    'nginx bir ters vekil sunucudur ve gelen istekleri arka uçtaki sunuculara yönlendirir, ' +
-    'bu işlemi düşük bellek kullanımı ile yapar.';
-
-  it('recognises English prose', () => {
-    expect(looksLike(english, 'en')).toBe(true);
-    expect(looksLike(english, 'tr')).toBe(false);
-  });
-
-  it('recognises Turkish prose', () => {
-    expect(looksLike(turkish, 'tr')).toBe(true);
-    expect(looksLike(turkish, 'en')).toBe(false);
-  });
-
-  it('catches the failure that matters: Turkish asked for, English delivered', () => {
-    expect(looksLike(english, 'tr')).toBe(false);
   });
 });
 

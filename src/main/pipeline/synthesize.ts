@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { LlmAdapter } from '../llm/adapter';
 import { LANGUAGE_NAMES, PRIMER_CARD, SYSTEM_PREAMBLE, render } from '../llm/prompts';
 import { structured } from '../llm/schema';
+import { looksLike, sourceMentionsSkill } from '../util/language';
 
 /**
  * Writes a primer from retrieved text, and from nothing else.
@@ -54,6 +55,23 @@ export async function synthesizePrimer(
     );
   }
 
+  // Grounding, enforced before the model is asked rather than hoped for afterwards.
+  //
+  // Resolution already decided this source is about the subject, but extraction can still
+  // hand over a sign-in page or a consent dialog from the same URL — and measured, the
+  // model fills that space from its own memory and produces a fluent, sourceless card
+  // ([TD-17](../../../docs/project/tech-debt.md)). Length alone did not catch it: a
+  // sign-in page has enough words to clear the minimum.
+  if (!sourceMentionsSkill(sourceText, skill)) {
+    return err(
+      appError(
+        'provider',
+        'source-not-about-skill',
+        `the retrieved text never mentions "${skill}", so there is nothing to write from`,
+      ),
+    );
+  }
+
   const generation = await deps.llm.generate({
     system: SYSTEM_PREAMBLE,
     prompt: render(PRIMER_CARD, {
@@ -91,6 +109,21 @@ export async function synthesizePrimer(
   }
   if (title.trim().length === 0) {
     return err(appError('validation', 'no-title', 'primer has no title'));
+  }
+
+  // The requested language is a prompt parameter, and measured, a 4B model with an English
+  // source in front of it follows the source rather than the instruction
+  // ([TD-18](../../../docs/project/tech-debt.md)). A visible failure the queue retries is
+  // better than a card silently in the wrong language: the user asked for Turkish and
+  // would otherwise get English with no sign anything went wrong.
+  if (!looksLike(trimmed, language)) {
+    return err(
+      appError(
+        'validation',
+        'wrong-language',
+        `primer was asked for in ${language} and did not come back in it`,
+      ),
+    );
   }
 
   return ok({
