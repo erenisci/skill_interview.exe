@@ -9,7 +9,49 @@ date: 2026-09-02
 
 ## Status
 
-Accepted — 2026-09-02
+Accepted — 2026-09-02. **The decision holds; one consequence it did not anticipate is recorded below.**
+
+## Correction — 2026-09-04
+
+Constraining decoding to a schema also constrains **the order the model may think in**, and that turned out to
+matter far more than this ADR expected.
+
+Grammar-constrained decoding emits object fields in schema order. Combined with `think: false` — which removes the
+model's scratchpad entirely ([../../llm/architecture.md](../../llm/architecture.md)) — whatever field comes first
+must be produced before the model has written a word of reasoning.
+
+`resolve-source` had the shape `{ index, reason }`. So the model committed to a candidate index _first_, and then
+wrote a justification for a choice it had already made. The results were self-contradicting in a way that reads as
+absurd until the cause is clear:
+
+> `index: 0`, `reason: "The candidate describes the Tauri as an ancient people, not the technology Tauri."`
+
+The reasoning was right every time. The answer was wrong every time, and it was wrong **in the specific direction
+the product cannot tolerate**: the stage never answered "none", which is the refusal that
+[ADR-0003](0003-source-resolution.md) is built on and the single most important safety property in the pipeline.
+
+Measured with `npm run eval` on the same four cases, changing nothing but the field order:
+
+| Schema order        | Correct | Refusals correct |
+| ------------------- | ------- | ---------------- |
+| `{ index, reason }` | 1 / 4   | 0 / 2            |
+| `{ reason, index }` | 3 / 4   | 2 / 2            |
+
+On the full disambiguation set the reordered schema scores **7/7**, including the `ANXS/postgresql` Ansible-role
+case that [TD-10](../../project/tech-debt.md) had been open on since M-3.
+
+**The rule this establishes: in any constrained schema, a justification field comes before the decision it
+justifies.** It costs nothing — the tokens are generated either way — and it is the difference between a model that
+reasons and one that rationalises.
+
+Two things this does not change. Schema conformance is still a runtime guarantee: the eval measured 100% first-attempt
+parse across every call. And the prompt still does not restate the shape — the fix was in the schema, not in asking
+the model more loudly.
+
+Worth noting how this was found. It was invisible for two milestones because `evals/probes/resolve-probe.mjs`
+re-implements the Ollama call by hand and had scored 5/5. The eval harness imports the shipped `resolveSource`
+instead, and immediately disagreed with the probe — which is exactly why it imports rather than re-implements
+([../../llm/eval-harness.md](../../llm/eval-harness.md)).
 
 ## Context
 

@@ -93,6 +93,25 @@ The renderer is a pure function asserted character for character; hydration is s
 what is read on screen and what lands in the file cannot drift. Only the save dialog and the file write touch
 Electron.
 
+**M-7 is built, and it earned its keep on the first run.** `npm run eval` runs six frozen sets through the _shipped_
+pipeline — not a copy — and scores the metrics a machine can settle. Groundedness, distractor plausibility and
+ambiguity are written to a review file for a person instead, because an LLM-as-judge agrees with exactly the mistakes
+that matter most.
+
+The first run found a bug in the harness, then a bug in the product. The harness bug: fixtures conflated a
+candidate's `identity` with its `title`, so the name gate rejected correct candidates. The product bug was worse and
+two milestones old — `resolve-source` asked the model for `index` before `reason`, and under constrained decoding
+with no scratchpad that means committing to an answer before reasoning about it. The model's reasoning was right
+every single time; the number it had already emitted was wrong. Resolution never answered "none", which is the
+refusal ADR-0003 rests on.
+
+Ordering `reason` before `index` took the disambiguation set from 1/4 to **7/7**, refusals included, and closed
+[TD-10](project/tech-debt.md) — open since M-3 and diagnosed then as a judgement problem it never was.
+
+Two metrics fail at baseline and are recorded rather than smoothed over: a sign-in page still produces a card
+([TD-17](project/tech-debt.md)), and Turkish requests come back in English ([TD-18](project/tech-debt.md)). Both were
+suspected in the docs for months and neither was a number until now.
+
 ## In Progress
 
 - **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests
@@ -146,7 +165,8 @@ Electron.
 
 1. Add a few related skills in the app and read both the day's questions (M-4) and the daily set (M-5) end to end —
    the check a probe or a stubbed test cannot make for either
-2. M-7 — eval harness, and the backlog it exists to settle: TD-11 through TD-14 plus the model-dependence question
+2. Act on the two failing baselines — grounding under useless retrieval (TD-17) and Turkish output (TD-18); both now
+   have a set to measure a fix against rather than a hunch
 3. M-8 — settings UI (language, counts, reminder, key), Windows installer, README and licence
 
 ## Open Decisions

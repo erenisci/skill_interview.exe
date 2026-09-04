@@ -115,7 +115,20 @@ empty file.
 a run across at least two models to settle the model-dependent prompt question.
 **Depends on.** M-4.
 **Exit criteria.** `npm run eval` produces a comparable score; a deliberate prompt regression is caught by it.
-**Status.** Not started. **Can start in parallel with M-5.**
+**Status.** Built, with a first baseline recorded and one exit criterion met the hard way. `npm run eval` produces a
+comparable score across six frozen sets ([eval-harness.md](../llm/eval-harness.md)). The regression criterion was met
+by a real regression rather than a planted one: the harness disagreed with a hand-written probe about resolution,
+and the disagreement was a shipped bug that had silently disabled the refusal path since M-2
+([ADR-0002](../architecture/adr/0002-constrained-decoding.md), correction). Fixing it took resolution from 25% to
+100% and closed [TD-10](tech-debt.md).
+
+Two metrics are failing at baseline and are recorded as such: refusal 50% ([TD-17](tech-debt.md)) and language
+accuracy 33% ([TD-18](tech-debt.md)).
+
+**Not done:** the two-model comparison. Only one model is installed, and pulling a second is the author's call
+([TD-09](tech-debt.md)); the harness takes `OLLAMA_MODEL` so the run itself is one command once a second model
+exists. The judged metrics — groundedness, plausibility, ambiguity — have material generated and are awaiting human
+scoring, by design.
 
 ### M-8 — Shippable
 

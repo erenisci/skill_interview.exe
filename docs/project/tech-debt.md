@@ -104,22 +104,18 @@ the design has to change for it — the model is a setting.
 **Cost.** A blind `npm update` breaks the install; the three packages move together or not at all.
 **Remediation.** Lift when `electron-vite` supports `vite@8`. Recorded in [../maintenance.md](../maintenance.md).
 
-### TD-10 — Resolution cannot tell a technology from the tooling around it
+### TD-10 — Resolution cannot tell a technology from the tooling around it — RESOLVED
 
-**What.** Searching "PostgreSQL" returns Ansible roles and Chef cookbooks named `postgresql`, and resolution picks
-one roughly two runs in three. Measured 2026-09-03: one run chose Wikipedia's PostgreSQL article and classified it
-well (`database`, `relational`, `mvcc`, `replication`); two chose `ANXS/postgresql`, whose README is about installing
-PostgreSQL rather than what it is, and produced a single useless tag.
-**Why it exists.** Both gates were designed for the _wrong subject_ problem — Pompeii for Zustand. A deployment role
-genuinely is about the technology, so neither the name gate nor the subject check has grounds to reject it. The
-prompt now names this case explicitly, which helped but did not settle it.
-**Cost.** The card is written from packaging documentation rather than from the project, and the skill usually ends
-up unclassified, so it joins no comparisons. It is **not** a wrong claim — the card describes what the source says —
-but it answers the wrong question.
-**Contained by.** Classification failure no longer fails the job, so the outcome is a visible degradation rather
-than a lost card, and a tag equal to the skill's own name is now discarded.
-**Remediation.** These cases belong in `disambiguation.jsonl` so M-7 measures the fix instead of guessing at it.
-Prompt tuning by hand against three runs is how a fix gets believed without being verified.
+**What.** Searching "PostgreSQL" returns Ansible roles named `postgresql`, and resolution picked one roughly two runs
+in three. Measured 2026-09-03.
+**What it turned out to be.** Not a judgement problem. The model's stated reasoning was correct all along — it
+described the Ansible role as packaging rather than the technology — while the `index` it returned said otherwise,
+because the schema made it commit to a number before writing a word of reasoning
+([ADR-0002](../architecture/adr/0002-constrained-decoding.md), correction).
+**Now.** With `reason` ordered before `index`, the frozen `ANXS/postgresql` case answers "none" correctly, and the
+full disambiguation set scores 7/7 including all three refusals (`npm run eval`, 2026-09-04).
+**Kept as a regression case.** `postgresql-ansible-role` and `postgresql-both` stay in `evals/sets/disambiguation.jsonl`
+so a future prompt or schema change that reintroduces this is caught rather than rediscovered.
 
 ### TD-11 — The question quality thresholds are guesses
 
@@ -210,3 +206,35 @@ without inventing a placeholder icon file to unblock a `Tray` instance that woul
 actually asks for works.
 **Remediation.** Add a real `Tray` with an icon once the app has one — the same icon M-8's Windows installer needs,
 so this is naturally M-8 work rather than a separate pass.
+
+### TD-17 — A sign-in page can still produce a card
+
+**What.** Measured 2026-09-04 (`npm run eval`, refusal set): of two pages with no article behind them, the cookie
+banner was correctly refused and the sign-in wall was not — the model wrote a card about Redis from a page that
+contains no Redis at all. Refusal rate 50%.
+**Why it exists.** Refusal is currently enforced by length, not by grounding: `synthesizePrimer` rejects a body under
+`MIN_BODY_CHARS`. A cookie banner produces too little to pass that bar; a sign-in wall has enough words in it that the
+model can fill the space, and what fills it comes from its own memory rather than the page.
+**Cost.** The exact failure the product's first rule exists to prevent — a fluent, confident card with no source
+behind it. It is worse than a visible failure precisely because it looks like a success.
+**Contained by.** Nothing. Length is a proxy for grounding and this is where the proxy breaks.
+**Remediation.** The prompt already says to report gaps rather than fill them; that is not enough on its own. The
+candidate fix is a cheap deterministic pre-check — a page whose extracted text never mentions the skill is not
+material about that skill — applied before synthesis rather than after. Measure it against this set rather than
+assuming it works.
+
+### TD-18 — Turkish is requested and English is delivered
+
+**What.** Measured 2026-09-04 (`npm run eval`, language set): both Turkish cases came back as English prose. Language
+accuracy 33% — the only pass was the English case. Technical terms survived untranslated in all three, so the term
+rule works; the language rule does not.
+**Why it exists.** The language is passed as a prompt parameter (`LANGUAGE: Turkish`) and nothing enforces it. A 4B
+model with an English source in front of it and an English system preamble above it follows the weight of the
+context rather than one line of instruction.
+**Cost.** Turkish is one of the two content languages the product offers ([FR-61](../product/requirements-functional.md)).
+Offering a language that silently returns another one is worse than not offering it.
+**Contained by.** Nothing yet. The setting is selectable and the output is wrong.
+**Remediation.** Unmeasured options, in rough order of cost: state the language requirement last rather than first in
+the prompt, since recency wins under constrained decoding; move it into the system preamble; or reject non-matching
+output in `synthesizePrimer` the way length is rejected, using the same detector the eval scores with. The detector
+already exists and is tested — reusing it as a runtime guard costs almost nothing.

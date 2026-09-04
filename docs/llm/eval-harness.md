@@ -16,6 +16,25 @@ good — and that is what decides whether this product is worth using. The eval 
 Run: `npm run eval`. Lives in `evals/`. Gates every prompt change and every release
 ([../project/release-plan.md](../project/release-plan.md)).
 
+## How it is built
+
+**It imports the shipped pipeline rather than re-implementing it.** `evals/run.ts` calls the real `resolveSource`,
+`synthesizePrimer` and `generatePairClaims` through the real `OllamaLlmAdapter`. This is not a detail: the one-off
+probes in `evals/probes/` hand-write their own Ollama call, and one of them scored resolution at 5/5 while the
+shipped code was scoring 1/4 — the probe was measuring a copy that had drifted. The first thing the harness did was
+disagree with it, and the disagreement was a real bug ([ADR-0002](../architecture/adr/0002-constrained-decoding.md),
+correction).
+
+**Schema conformance is measured across every call the run makes**, rather than from a set of its own as first
+planned. Sampling real usage is strictly better than a synthetic set: it measures the prompts that actually run, in
+the proportions they actually run in.
+
+**Sources are frozen copies in `evals/sources/`**, with their origin and licence recorded there. Refreshing one
+invalidates comparison with every earlier run, so a refresh starts a new baseline rather than continuing the old one.
+
+The deterministic scorers are ordinary pure functions and are covered by the ordinary test suite — a scorer that
+quietly miscounts would corrupt every quality number this project records.
+
 ## Eval Sets
 
 Fixed inputs, so runs are comparable across prompt and model changes.
@@ -70,12 +89,30 @@ Rules:
 
 Each release records its scores here, so movement over time is visible.
 
-| Date | Version | Model | Prompt versions | Grounded | Plausible | Ambiguity | Schema | Language | Notes                       |
-| ---- | ------- | ----- | --------------- | -------- | --------- | --------- | ------ | -------- | --------------------------- |
-| —    | —       | —     | —               | TBD      | TBD       | TBD       | TBD    | TBD      | No runs yet; harness is M-7 |
+### Baseline — 2026-09-04, `qwen3:4b`
 
-**Baselines are TBD until the first run.** They will be set from that run rather than guessed, then treated as the
-floor.
+The first real run. Deterministic metrics only; the judged ones are awaiting review
+(`evals/results/2026-09-04-qwen3-4b.md`).
+
+| Metric                | Score | Passed | Reading                                                                      |
+| --------------------- | ----- | ------ | ---------------------------------------------------------------------------- |
+| Resolution precision  | 100%  | 4/4    | After the field-order fix. Was 25% before it                                 |
+| Resolution refusal    | 100%  | 3/3    | Includes the `ANXS/postgresql` case TD-10 was open on                        |
+| Schema pass rate      | 100%  | 16/16  | ADR-0002 doing what it claims                                                |
+| Injection resistance  | 100%  | 2/2    | Both payloads ignored, one of them an HTML comment framed as user-authorised |
+| Terms untranslated    | 100%  | 3/3    | Technical terms survive even when the prose does not                         |
+| **Refusal rate**      | 50%   | 1/2    | A sign-in page produced a card ([TD-17](../project/tech-debt.md))            |
+| **Language accuracy** | 33%   | 1/3    | Turkish asked for, English delivered ([TD-18](../project/tech-debt.md))      |
+
+**These are the baseline and the floor.** No metric drops below its row here without a written reason.
+
+Two of them are already failing, and that is the harness working rather than the harness being wrong. Both failures
+were suspected in the docs long before this run — the Turkish risk since M-1, grounding under useless retrieval since
+ADR-0003 — and neither was a number until now.
+
+The run also found a bug in **itself** before it found one in the model: the disambiguation fixtures conflated a
+candidate's `identity` (what the name gate matches) with its `title`, so the gate rejected correct candidates and the
+harness scored that as a model failure. A fixture bug that inflates a failure is as damaging as one that hides it.
 
 ### First signal, ahead of the harness
 
