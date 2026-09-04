@@ -14,6 +14,8 @@ function skill(id: number, name: string): Skill {
     tags: [],
     status: 'ready',
     contentLang: 'en',
+    dailyCards: null,
+    dailyQuestions: null,
     createdAt: '2026-09-01T00:00:00.000Z',
   };
 }

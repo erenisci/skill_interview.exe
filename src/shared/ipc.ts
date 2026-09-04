@@ -26,6 +26,8 @@ export const CHANNELS = {
   skillsRemove: 'skills:remove',
   cardsForSkill: 'cards:for-skill',
   skillsRelated: 'skills:related',
+  skillsFailure: 'skills:failure',
+  skillsLimits: 'skills:limits',
   questionsForSkill: 'questions:for-skill',
   questionsFlag: 'questions:flag',
   dailyGet: 'daily:get',
@@ -152,6 +154,13 @@ export interface ExportResult {
   readonly path: string | null;
 }
 
+/** A blank field means "no cap of its own"; 0 means "not today". */
+export interface SetSkillLimitsRequest {
+  readonly skillId: number;
+  readonly cards: number | null;
+  readonly questions: number | null;
+}
+
 /** Request and response shape per channel. Both sides derive their types from this map. */
 export interface IpcContract {
   [CHANNELS.systemStatus]: { request: void; response: Result<SystemStatus> };
@@ -160,6 +169,8 @@ export interface IpcContract {
   [CHANNELS.skillsRemove]: { request: number; response: Result<void> };
   [CHANNELS.cardsForSkill]: { request: number; response: Result<readonly CardWithSources[]> };
   [CHANNELS.skillsRelated]: { request: number; response: Result<readonly RelatedSkill[]> };
+  [CHANNELS.skillsFailure]: { request: number; response: Result<string | null> };
+  [CHANNELS.skillsLimits]: { request: SetSkillLimitsRequest; response: Result<Skill> };
   [CHANNELS.questionsForSkill]: { request: number; response: Result<readonly Question[]> };
   [CHANNELS.questionsFlag]: { request: FlagQuestionRequest; response: Result<void> };
   [CHANNELS.dailyGet]: { request: void; response: Result<DailySet> };

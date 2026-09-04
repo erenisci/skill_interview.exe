@@ -122,8 +122,14 @@ export class CardsRepository {
   }
 
   /** Every card in the library, for the scheduler to pick candidates from. */
-  allIds(): readonly number[] {
-    return (this.db.prepare('SELECT id FROM cards').all() as { id: number }[]).map((row) => row.id);
+  /** Every card with the skill it belongs to — the daily set spreads across skills. */
+  allWithSkill(): readonly { id: number; skillId: number }[] {
+    return (
+      this.db.prepare('SELECT id, skill_id FROM cards ORDER BY id').all() as {
+        id: number;
+        skill_id: number;
+      }[]
+    ).map((row) => ({ id: row.id, skillId: row.skill_id }));
   }
 
   findById(id: number): Card | null {

@@ -4,7 +4,17 @@
  * String literals here must match the values stored in SQLite exactly.
  */
 
-export type ContentLanguage = 'en' | 'tr';
+/**
+ * One language, deliberately.
+ *
+ * Turkish was supported and then withdrawn: measured against a real model, claims for a
+ * Türkçe skill came back in English 2 times in 4, and neither of the two fixes that worked
+ * elsewhere — stating the requirement last, or a leading schema field — moved that number.
+ * A product that silently gives half its users English options in a Turkish question is
+ * worse than one that says it speaks English. The column and this type stay so the seam is
+ * still visible if the model side ever becomes reliable.
+ */
+export type ContentLanguage = 'en';
 
 export type SkillStatus = 'pending' | 'researching' | 'ready' | 'failed';
 
@@ -16,6 +26,9 @@ export interface Skill {
   readonly tags: readonly string[];
   readonly status: SkillStatus;
   readonly contentLang: ContentLanguage;
+  /** Per-skill daily caps. `null` means no cap of its own; `0` means "not today". */
+  readonly dailyCards: number | null;
+  readonly dailyQuestions: number | null;
   readonly createdAt: string;
 }
 
@@ -159,7 +172,7 @@ export interface Favorite {
   readonly createdAt: string;
 }
 
-export type JobKind = 'research' | 'compare' | 'generate-questions';
+export type JobKind = 'research' | 'classify' | 'compare' | 'generate-questions';
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed';
 
 export interface Job {

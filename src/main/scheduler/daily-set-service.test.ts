@@ -108,7 +108,7 @@ function addQuestion(skill: Skill, cardId: number): number {
 }
 
 function deps(now: () => Date): DailySetDeps {
-  return { cards, questions, reviews, settings, now };
+  return { skills, cards, questions, reviews, settings, now };
 }
 
 describe('getTodaysSet — the exit criteria', () => {
@@ -272,5 +272,89 @@ describe('recordAnswer', () => {
     );
     // The all-or-nothing guarantee: a rejected answer leaves no trace in the schedule.
     expect(reviews.latestReview('card', cardId)).toBeNull();
+  });
+});
+
+describe('getTodaysSet — topping up slots that were never filled', () => {
+  const AT_NINE = () => new Date('2026-09-03T09:00:00.000Z');
+
+  it('adds material that arrived after the set froze below its cap', () => {
+    // Found live: four skills were added, research finished at different times, and the
+    // set froze at two cards while still allowed four. The user saw two, had no way to
+    // reach the rest, and reasonably read it as broken.
+    addCard(addSkill('nginx'));
+    addCard(addSkill('Traefik'));
+    settings.set('daily_cards', '4');
+    settings.set('daily_questions', '0');
+
+    const first = getTodaysSet(deps(AT_NINE));
+    expect(first.ok && first.value.items).toHaveLength(2);
+
+    addCard(addSkill('HAProxy'));
+    addCard(addSkill('Caddy'));
+
+    const second = getTodaysSet(deps(AT_NINE));
+    expect(second.ok && second.value.items).toHaveLength(4);
+  });
+
+  it('never exceeds the cap, however often it is read', () => {
+    for (const name of ['nginx', 'Traefik', 'HAProxy', 'Caddy']) addCard(addSkill(name));
+    settings.set('daily_cards', '2');
+    settings.set('daily_questions', '0');
+
+    getTodaysSet(deps(AT_NINE));
+    getTodaysSet(deps(AT_NINE));
+    const third = getTodaysSet(deps(AT_NINE));
+
+    expect(third.ok && third.value.items).toHaveLength(2);
+  });
+
+  it('leaves what is already in the set exactly where it was', () => {
+    // The freeze exists so the set does not reshuffle under the user. Topping up must add
+    // to the end, not reorder.
+    addCard(addSkill('nginx'));
+    settings.set('daily_cards', '3');
+    settings.set('daily_questions', '0');
+
+    const first = getTodaysSet(deps(AT_NINE));
+    const firstIds = first.ok
+      ? first.value.items.map((i) => (i.kind === 'card' ? i.card.card.id : -1))
+      : [];
+
+    addCard(addSkill('Traefik'));
+    const second = getTodaysSet(deps(AT_NINE));
+    const secondIds = second.ok
+      ? second.value.items.map((i) => (i.kind === 'card' ? i.card.card.id : -1))
+      : [];
+
+    expect(secondIds.slice(0, firstIds.length)).toEqual(firstIds);
+  });
+
+  it('does not offer the same item twice', () => {
+    addCard(addSkill('nginx'));
+    settings.set('daily_cards', '5');
+    settings.set('daily_questions', '0');
+
+    getTodaysSet(deps(AT_NINE));
+    const second = getTodaysSet(deps(AT_NINE));
+    if (!second.ok) throw new Error('expected a set');
+
+    const ids = second.value.items.map((i) => (i.kind === 'card' ? i.card.card.id : -1));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('adds a question that only became available later', () => {
+    const traefik = addSkill('Traefik');
+    const card = addCard(traefik);
+    settings.set('daily_cards', '1');
+    settings.set('daily_questions', '1');
+
+    const first = getTodaysSet(deps(AT_NINE));
+    expect(first.ok && first.value.items).toHaveLength(1);
+
+    addQuestion(traefik, card);
+
+    const second = getTodaysSet(deps(AT_NINE));
+    expect(second.ok && second.value.items.map((i) => i.kind).sort()).toEqual(['card', 'question']);
   });
 });

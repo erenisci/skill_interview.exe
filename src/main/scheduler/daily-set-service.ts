@@ -5,8 +5,9 @@ import type { CardsRepository } from '../db/repositories/cards';
 import type { QuestionsRepository } from '../db/repositories/questions';
 import type { ReviewsRepository } from '../db/repositories/reviews';
 import type { SettingsRepository } from '../db/repositories/settings';
+import type { SkillsRepository } from '../db/repositories/skills';
 import { endOfLocalDay, localDateString } from '../util/date';
-import { assembleDailySet, type DailySetPool } from './daily-set';
+import { assembleDailySet, type AssembledItem, type DailySetPool } from './daily-set';
 import { schedule } from './fsrs';
 
 /**
@@ -21,6 +22,7 @@ import { schedule } from './fsrs';
  */
 
 export interface DailySetDeps {
+  readonly skills: SkillsRepository;
   readonly cards: CardsRepository;
   readonly questions: QuestionsRepository;
   readonly reviews: ReviewsRepository;
@@ -39,20 +41,65 @@ function counts(settings: SettingsRepository): { cards: number; questions: numbe
   };
 }
 
-function buildPool(deps: DailySetDeps, asOf: string): DailySetPool {
-  const cardIds = deps.cards.allIds();
-  const questionIds = deps.questions.allActiveIds();
-  const cardSplit = deps.reviews.splitByDue('card', cardIds, asOf);
-  const questionSplit = deps.reviews.splitByDue('question', questionIds, asOf);
-
+/** How much of each kind today's set already holds. */
+function tally(frozen: readonly { itemType: ItemType }[]): { cards: number; questions: number } {
   return {
-    dueCards: cardSplit.due.map((itemId) => ({ itemType: 'card' as const, itemId })),
-    newCards: cardSplit.unseen.map((itemId) => ({ itemType: 'card' as const, itemId })),
-    dueQuestions: questionSplit.due.map((itemId) => ({ itemType: 'question' as const, itemId })),
-    newQuestions: questionSplit.unseen.map((itemId) => ({
+    cards: frozen.filter((entry) => entry.itemType === 'card').length,
+    questions: frozen.filter((entry) => entry.itemType === 'question').length,
+  };
+}
+
+/** Keys of what is already in the set, so a top-up cannot offer the same item twice. */
+function alreadyIn(frozen: readonly { itemType: ItemType; itemId: number }[]): ReadonlySet<string> {
+  return new Set(frozen.map((entry) => `${entry.itemType}:${String(entry.itemId)}`));
+}
+
+/** Positions continue after what is already there, so the order the user saw is stable. */
+function offsetBy(items: readonly AssembledItem[], start: number): readonly AssembledItem[] {
+  return items.map((item, index) => ({ ...item, position: start + index }));
+}
+
+function buildPool(deps: DailySetDeps, asOf: string, exclude: ReadonlySet<string>): DailySetPool {
+  const keep = (itemType: ItemType) => (row: { id: number }) =>
+    !exclude.has(`${itemType}:${String(row.id)}`);
+
+  const cards = deps.cards.allWithSkill().filter(keep('card'));
+  const questions = deps.questions.allActiveWithSkill().filter(keep('question'));
+
+  // The split queries answer in id order; the skill each item belongs to is carried
+  // alongside so assembly can spread the day across skills rather than down the list.
+  const cardSkill = new Map(cards.map((row) => [row.id, row.skillId]));
+  const questionSkill = new Map(questions.map((row) => [row.id, row.skillId]));
+
+  const cardSplit = deps.reviews.splitByDue(
+    'card',
+    cards.map((row) => row.id),
+    asOf,
+  );
+  const questionSplit = deps.reviews.splitByDue(
+    'question',
+    questions.map((row) => row.id),
+    asOf,
+  );
+
+  const asCards = (ids: readonly number[]) =>
+    ids.map((itemId) => ({
+      itemType: 'card' as const,
+      itemId,
+      skillId: cardSkill.get(itemId) ?? 0,
+    }));
+  const asQuestions = (ids: readonly number[]) =>
+    ids.map((itemId) => ({
       itemType: 'question' as const,
       itemId,
-    })),
+      skillId: questionSkill.get(itemId) ?? 0,
+    }));
+
+  return {
+    dueCards: asCards(cardSplit.due),
+    newCards: asCards(cardSplit.unseen),
+    dueQuestions: asQuestions(questionSplit.due),
+    newQuestions: asQuestions(questionSplit.unseen),
   };
 }
 
@@ -91,11 +138,30 @@ export function getTodaysSet(deps: DailySetDeps): Result<DailySet> {
   const date = localDateString(now);
 
   let frozen = deps.reviews.dailySetFor(date);
-  if (frozen.length === 0) {
-    const pool = buildPool(deps, endOfLocalDay(now).toISOString());
-    const assembled = assembleDailySet(pool, counts(deps.settings));
-    deps.reviews.writeDailySet(date, assembled);
-    frozen = deps.reviews.dailySetFor(date);
+
+  // Assemble on first look, then **top up slots that were never filled**.
+  //
+  // Freezing is what stops the set reshuffling around whatever has just become due, and it
+  // stays. But it was also holding empty slots empty, which is not the same thing and was
+  // read as a bug the first time it happened: four skills were added, research finished at
+  // different times, and the set had frozen at two cards while it was still allowed four.
+  // The user saw two, had no way to get the rest, and reasonably concluded it was broken.
+  //
+  // Only the shortfall is added, and only from material that was never in the set. Nothing
+  // already in it moves or is replaced, so the guarantee the freeze exists for is intact.
+  const wanted = counts(deps.settings);
+  const have = tally(frozen);
+  if (have.cards < wanted.cards || have.questions < wanted.questions) {
+    const pool = buildPool(deps, endOfLocalDay(now).toISOString(), alreadyIn(frozen));
+    const assembled = assembleDailySet(
+      pool,
+      { cards: wanted.cards - have.cards, questions: wanted.questions - have.questions },
+      deps.skills.dailyLimits(),
+    );
+    if (assembled.length > 0) {
+      deps.reviews.writeDailySet(date, offsetBy(assembled, frozen.length));
+      frozen = deps.reviews.dailySetFor(date);
+    }
   }
 
   const items = frozen

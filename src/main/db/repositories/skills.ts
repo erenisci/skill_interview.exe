@@ -10,6 +10,8 @@ interface SkillRow {
   tags: string;
   status: string;
   content_lang: string;
+  daily_cards: number | null;
+  daily_questions: number | null;
   created_at: string;
 }
 
@@ -22,6 +24,8 @@ function toSkill(row: SkillRow): Skill {
     tags: parseTags(row.tags),
     status: row.status as SkillStatus,
     contentLang: row.content_lang as ContentLanguage,
+    dailyCards: row.daily_cards,
+    dailyQuestions: row.daily_questions,
     createdAt: row.created_at,
   };
 }
@@ -45,6 +49,31 @@ export class SkillsRepository {
       .prepare('SELECT * FROM skills ORDER BY created_at DESC, id DESC')
       .all() as SkillRow[];
     return rows.map(toSkill);
+  }
+
+  /**
+   * The per-skill caps, keyed by skill id. `null` means the skill sets no cap of its own
+   * and the global count plus the even spread decide; `0` means "not today", which parks a
+   * skill without deleting it and losing its review history.
+   */
+  dailyLimits(): { cards: Map<number, number | null>; questions: Map<number, number | null> } {
+    const rows = this.db.prepare('SELECT id, daily_cards, daily_questions FROM skills').all() as {
+      id: number;
+      daily_cards: number | null;
+      daily_questions: number | null;
+    }[];
+    return {
+      cards: new Map(rows.map((row) => [row.id, row.daily_cards])),
+      questions: new Map(rows.map((row) => [row.id, row.daily_questions])),
+    };
+  }
+
+  setDailyLimits(id: number, cards: number | null, questions: number | null): boolean {
+    return (
+      this.db
+        .prepare('UPDATE skills SET daily_cards = ?, daily_questions = ? WHERE id = ?')
+        .run(cards, questions, id).changes > 0
+    );
   }
 
   findBySlug(slug: string): Skill | null {
