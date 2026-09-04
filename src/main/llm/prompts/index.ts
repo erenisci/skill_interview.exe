@@ -1,7 +1,7 @@
 import classifySkillV1 from './classify-skill.v1.md?raw';
 import comparisonCardV1 from './comparison-card.v1.md?raw';
 import contrastiveClaimsV1 from './contrastive-claims.v1.md?raw';
-import primerCardV1 from './primer-card.v1.md?raw';
+import primerCardV2 from './primer-card.v2.md?raw';
 import questionStemV1 from './question-stem.v1.md?raw';
 import resolveSourceV1 from './resolve-source.v1.md?raw';
 
@@ -20,9 +20,18 @@ export const RESOLVE_SOURCE: Prompt = {
   template: resolveSourceV1,
 };
 
+/**
+ * v2 moves the language requirement to the very end and says explicitly that the source's
+ * own language does not decide the output's.
+ *
+ * Measured, v1 lost the argument to the source: both Turkish cases came back in English
+ * ([TD-18](../../../../docs/project/tech-debt.md)). The instruction was in the middle of
+ * the prompt, thousands of tokens of English source material stood between it and
+ * generation, and constrained decoding gives the model no room to reconsider.
+ */
 export const PRIMER_CARD: Prompt = {
-  version: 'primer-card.v1',
-  template: primerCardV1,
+  version: 'primer-card.v2',
+  template: primerCardV2,
 };
 
 export const CLASSIFY_SKILL: Prompt = {
