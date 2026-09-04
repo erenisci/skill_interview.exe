@@ -89,7 +89,7 @@ A third question sits underneath: if decoding is constrained, is validating the 
 **Easier.**
 
 - Schema conformance becomes a **runtime guarantee** instead of a per-model prompt-following skill. This removes
-  roughly half of TD-04's risk: what remains model-dependent is content quality — distractor sharpness and Turkish
+  roughly half of TD-04's risk: what remains model-dependent is content quality — distractor sharpness and prose
   fluency — not whether the response parses.
 - The `schema pass rate` metric in [../../llm/eval-harness.md](../../llm/eval-harness.md) should approach ceiling,
   which makes the remaining eval signal about quality rather than plumbing.

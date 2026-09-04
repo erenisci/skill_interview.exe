@@ -105,16 +105,20 @@ Acceptance:
 - Every card shows its sources.
 - I can flag a bad question and it leaves rotation.
 
-### US-09 — Study in my own language
+### US-09 — Study in my own language — **withdrawn 2026-09-04**
 
-**As a** Turkish-speaking developer
+**As a** developer whose first language is not English
 **I want** to choose the language of the generated content
 **So that** I read in whichever language I absorb faster.
 
-Acceptance:
+**Not delivered, and not deferred quietly.** Turkish was built, measured against a real model, and withdrawn:
+claims kept coming back in English, and two fixes that worked elsewhere in this codebase did not move the number
+([TD-19](../project/tech-debt.md)). The half-working version was worse than none — an English option inside a
+Turkish question is a tell that hands the reader the answer.
 
-- Language is a setting, applied to new generation.
-- Technical terms are not mangled by translation.
+The story stays here rather than being deleted, because it is a real need this product does not meet, and the
+person it fails first is its author. It returns if a model is found that holds a second language on claims as well
+as on prose.
 
 ### US-10 — Keep it on my machine
 

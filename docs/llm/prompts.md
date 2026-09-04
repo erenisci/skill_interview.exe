@@ -69,7 +69,7 @@ Prompts are written and tuned against one model, but users choose their own from
 **Half of this problem is now closed.** [ADR-0002](../architecture/adr/0002-constrained-decoding.md) sends a JSON
 Schema with every request, so whether the response parses no longer depends on how well a given model follows
 formatting instructions. What is left is the half that was always harder to fix: **content quality** — distractor
-sharpness, grounding discipline, and Turkish fluency all still vary by model, and to the user that variance looks
+sharpness and grounding discipline still vary by model, and to the user that variance looks
 like a product bug.
 
 That remainder is unresolved. Two candidate answers:

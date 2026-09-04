@@ -15,7 +15,7 @@ updated: 2026-09-02
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Adapter**          | The interface isolating an external provider (LLM runtime, search engine) from the pipeline, so a provider can be swapped without touching pipeline code. |
 | **Card**             | A generated 1–2 page teaching text about one skill. Two kinds: **primer** (single skill) and **comparison** (two related skills).                         |
-| **Content language** | The language generated cards and questions are written in (Turkish or English). A user setting, independent of the UI language.                           |
+| **Content language** | The language generated cards and questions are written in. English only — Turkish was supported, measured and withdrawn ([TD-19](project/tech-debt.md)).  |
 | **Daily set**        | The cards and questions surfaced for a given day, chosen by the scheduler.                                                                                |
 | **Distractor**       | A wrong option in a multiple-choice question.                                                                                                             |
 | **FSRS**             | Free Spaced Repetition Scheduler — the algorithm deciding when an item is due again.                                                                      |

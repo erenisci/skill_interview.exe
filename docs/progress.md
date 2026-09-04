@@ -12,48 +12,57 @@ updated: 2026-09-04
 
 ## Current Status
 
-**Every milestone is built. M-1 through M-3 are signed off against real APIs and a real model; M-4 through M-8 are
-built and covered by tests but have not been watched running by a person. M-9 is closed as superseded.** 337 tests,
-type check, lint and build green.
+**Every milestone is built, and the first real session with the app found seven defects that no test had.** M-1
+through M-3 were signed off earlier; M-4 through M-8 are built and covered by tests. M-9 is closed as superseded.
+380 tests, type check, lint and build green, and the eval suite at 100% on every deterministic metric.
 
 What the app does today: a skill is added, researched from GitHub, its declared documentation and Wikipedia, and
 written up as a grounded primer card with its sources. Skills are classified and linked, and a strongly related pair
 gets a comparison card. Questions are assembled by code from atomic claims — the right answer is the skill's own, the
-three wrong ones belong to three different neighbours. FSRS serves a small daily set, frozen per local day. Anything
-in it can be starred with a note and exported as Markdown. Settings, an installer, and a tray icon are in.
+three wrong ones belong to three of the user's other skills. FSRS serves a small daily set, spread across skills and
+frozen per local day. Anything in it can be starred with a note and exported as Markdown. Settings, an installer, a
+tray icon, close-to-tray and an optional Windows login item are in.
+
+**The product is English-only.** Turkish was built, measured and withdrawn — the one scope decision this project has
+reversed ([TD-19](project/tech-debt.md)).
 
 The per-milestone story — including the measurements that overturned three confident designs — is in
 [project/roadmap.md](project/roadmap.md) and the [CHANGELOG](../CHANGELOG.md); the decisions are in the
 [ADRs](architecture/adr/README.md).
 
-**Two things about that status are worth stating plainly.** The remaining work is almost entirely _looking at it_
-rather than building it: five milestones are green on tests that, by construction, cannot answer whether the content
-is any good. And the eval harness — the one thing that can — has produced its judged material and is waiting on a
-human to score it.
+**The lesson of 2026-09-04 is worth stating plainly.** Five milestones were green on 337 tests, and the first hour of
+someone actually using the app produced: a name gate that discarded the right Wikipedia article and kept the wrong
+one, a resolution prompt that refused all six languages tried, a job queue that grew without bound, claims answering
+in the wrong language, a daily set frozen at half its size, a misleading empty state, and a rule requiring three
+related skills that a real CV cannot satisfy. None of them was subtle. None of them was reachable from a test that
+does not open the window.
+
+What is left is the same shape: the judged eval metrics are generated and waiting on a person, and nobody has yet
+read a day's questions on screen.
 
 ## In Progress
 
-- **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests against
-  stubs or a temp database; none has been watched running against a real model with real skills. M-4: do the claims
-  read as specific and the distractors as plausible. M-5: does a real daily set, on screen, feel like a reason to open
-  the app tomorrow. M-6: does the exported Markdown read well in an editor. The tests cover assembly, scheduling, the
-  reminder's timing logic, the transactional answer path and the export renderer, and none of them can answer any of
-  those three questions.
+- **M-4, M-5 and M-6 have not been read end to end in the app yet.** The blocking defects found on 2026-09-04 are all
+  fixed, so the run is now possible; it has not been done. M-4: do the claims read as specific and the distractors as
+  plausible. M-5: does a real daily set, on screen, feel like a reason to open the app tomorrow. M-6: does the
+  exported Markdown read well in an editor. No test can answer any of those three.
 
 ## Done (recent)
 
-| Date       | What                                                                                                                   |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-03 | [ADR-0006](architecture/adr/0006-pairwise-claims.md) — pairwise claims replace the gate; 6/6 pairs, 4/4 skills askable |
-| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating             |
-| 2026-09-03 | M-5: daily-set assembly frozen per local day, with content re-checked live on every read                               |
-| 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                 |
-| 2026-09-03 | `SwappableLlmAdapter` — selecting a model swaps the live adapter in place, no restart                                  |
-| 2026-09-03 | M-6: favourites with notes, kept as tombstones when their skill is deleted; Markdown export grouped by skill           |
-| 2026-09-04 | M-7: the eval harness — six frozen sets through the shipped pipeline, judged metrics left to a person                  |
-| 2026-09-04 | First eval run found a two-milestone-old bug: `resolve-source` answered before reasoning. 1/4 → 7/7, closing TD-10     |
-| 2026-09-04 | Recorded TD-17 and TD-18 as failing baselines, then fixed both — grounding guard, and the language stated last         |
-| 2026-09-04 | M-8: settings screen with main-process validation, Windows installer, tray icon (closing TD-16), CI package job        |
+| Date       | What                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating          |
+| 2026-09-03 | Closed M-9 — superseded by the repository already being public                                                      |
+| 2026-09-03 | M-6: favourites with notes and Markdown export, grouped by skill                                                    |
+| 2026-09-04 | M-7: the eval harness — frozen sets through the shipped pipeline, judged metrics left to a person                   |
+| 2026-09-04 | M-8: settings screen, Windows installer, tray icon, CI package job                                                  |
+| 2026-09-04 | First live session: the name gate kept the Indonesian island and discarded the Java language. Fixed, 5 languages    |
+| 2026-09-04 | `resolve-source.v2` — say what qualifies, judge every candidate first. Live 1/6 → 5/6, frozen 7/7                   |
+| 2026-09-04 | Fixed a question queue that grew without bound ([TD-21](project/tech-debt.md)) — 1,098 rows on a real machine       |
+| 2026-09-04 | Dropped the three-neighbour rule ([TD-14](project/tech-debt.md)) — a CV does not grow on request                    |
+| 2026-09-04 | The daily set spreads across skills and tops up slots it never filled; per-skill limits on the skill's own page     |
+| 2026-09-04 | Withdrew Turkish ([TD-19](project/tech-debt.md)) — measured twice, neither fix moved it. English-only, deliberately |
+| 2026-09-04 | Close-to-tray, optional Windows login item, new palette, expand animation, no scrollbar shift                       |
 
 Older entries live in the [CHANGELOG](../CHANGELOG.md).
 
@@ -63,12 +72,12 @@ Older entries live in the [CHANGELOG](../CHANGELOG.md).
 
 ## Next Up
 
-1. Add a few related skills in the app and read both the day's questions (M-4) and the daily set (M-5) end to end —
-   the check a probe or a stubbed test cannot make for either
-2. Install from `release/` on a clean Windows machine and walk to a daily set — M-8's exit criterion, and the only
-   check that cannot be run from inside the repository
-3. Score the judged eval metrics (`evals/results/`) — groundedness, distractor plausibility, ambiguity are generated
-   and waiting, and they are the ones that say something about quality
+1. Add four or five skills in the app and read the day's questions (M-4), the daily set (M-5) and an export (M-6)
+   end to end — the check a probe or a stubbed test cannot make for any of them
+2. Score the judged eval metrics (`evals/results/`) — groundedness, distractor plausibility, ambiguity are generated
+   and waiting, and they are the only measurements that say anything about quality
+3. Write the E2E suite, once those two have confirmed the flows are the right ones. Everything found on 2026-09-04
+   was reachable only by opening the window, which is exactly what this layer would automate
 
 ## Open Decisions
 
@@ -85,8 +94,6 @@ Older entries live in the [CHANGELOG](../CHANGELOG.md).
 - **Nothing independently checks that a wrong answer is really wrong** ([TD-12](project/tech-debt.md)). The gate that
   did was measured into the ground and removed; one generation call now carries that judgement alone. The user's
   `ambiguous` flag is the production signal, and its rate per prompt version is what the eval harness should watch.
-- **A skill needs three researched neighbours before it can be asked about** ([TD-14](project/tech-debt.md)), because
-  a pair yields about one usable claim per side. Asking the prompt for more was measured and costs more than it buys.
 - **`MAX_LENGTH_RATIO` and the claim-count bounds are still guesses** ([TD-11](project/tech-debt.md)), like the
   primer's length bounds before them — and still unmeasured, because no question survived far enough to exercise
   them. They belong to the eval set rather than to another round of hand-tuning.

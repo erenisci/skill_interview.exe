@@ -60,7 +60,7 @@ Run on a **clean Windows VM**, against the packaged installer, not a dev build.
 ## Language
 
 - [ ] Switching content language applies to new generation only; existing content is untouched.
-- [ ] Turkish output keeps technical terms intact rather than translating them into nonsense.
+- [ ] Card text keeps technical terms intact rather than paraphrasing them into something an interview will not use.
 
 ## Performance and resources
 

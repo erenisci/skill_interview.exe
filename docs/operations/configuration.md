@@ -34,17 +34,21 @@ running on the default where one is possible.
 
 ## Settings
 
-| Key                 | Default                  | Meaning                                                                           |
-| ------------------- | ------------------------ | --------------------------------------------------------------------------------- |
-| `content_language`  | `en`                     | Language new cards and questions are generated in. Applies to new generation only |
-| `daily_cards`       | `3`                      | How many cards per day                                                            |
-| `daily_questions`   | `5`                      | How many questions per day                                                        |
-| `reminder_enabled`  | `true`                   | Whether the reminder notification fires                                           |
-| `reminder_time`     | `18:00`                  | Local `HH:MM`, 24-hour, for the reminder                                          |
-| `ollama_url`        | `http://localhost:11434` | Where Ollama is reached                                                           |
-| `ollama_model`      | unset                    | Chosen from Ollama's installed list; no default is invented                       |
-| `github_token`      | unset                    | User's own GitHub token. Raises the search rate limit only; never required        |
-| `db_schema_version` | set by migrations        | Applied migration version; not user-editable                                      |
+| Key                 | Default                  | Meaning                                                                    |
+| ------------------- | ------------------------ | -------------------------------------------------------------------------- |
+| `daily_cards`       | `3`                      | How many cards per day                                                     |
+| `daily_questions`   | `5`                      | How many questions per day                                                 |
+| `reminder_enabled`  | `true`                   | Whether the reminder notification fires                                    |
+| `reminder_time`     | `18:00`                  | Local `HH:MM`, 24-hour, for the reminder                                   |
+| `close_to_tray`     | `true`                   | Closing the window hides it in the tray instead of quitting                |
+| `ollama_url`        | `http://localhost:11434` | Where Ollama is reached                                                    |
+| `ollama_model`      | unset                    | Chosen from Ollama's installed list; no default is invented                |
+| `github_token`      | unset                    | User's own GitHub token. Raises the search rate limit only; never required |
+| `db_schema_version` | set by migrations        | Applied migration version; not user-editable                               |
+
+**`content_language` is gone.** The product is English-only ([../product/prd.md](../product/prd.md)): Turkish was
+supported, measured, and withdrawn, so a setting offering a choice that does not exist would be a lie in a table
+whose whole job is to be true.
 
 **`github_token` is the only credential the app can hold**, and it is optional in the strong sense: research works
 without one, because an open-source project cannot ship a key. It raises GitHub's unauthenticated 60 req/h to 5000.
@@ -61,8 +65,36 @@ ordinary after-work hour with no study behind it. First candidates to revisit on
 is public rather than gated behind a private trial ([roadmap.md, M-9](../project/roadmap.md))
 ([`src/main/db/repositories/settings.ts`](../../src/main/db/repositories/settings.ts)).
 
+**`close_to_tray` defaults to on**, which is the one default here that overrides an OS convention, so it earns a
+reason. The reminder is the product's only mechanism for making this a daily habit, and a notification at 18:00
+needs a process at 18:00 — an app quit at lunchtime cannot deliver the thing it promises. The cost is the familiar
+annoyance of software that will not close, so the escape hatches are deliberate and both obvious: **Quit** in the
+tray icon's menu, and the setting itself. The window is hidden rather than destroyed, so reopening is instant.
+
+**`launch_at_startup` is off by default, and `close_to_tray` is on** — the difference is deliberate. Hiding a window
+someone closed is a small surprise they can undo in a second. Adding a program to their machine's startup without
+being asked is not, and nothing about this product earns that. It applies to packaged builds only: in development the
+executable is Electron's own binary inside `node_modules`, and registering _that_ at login would be an unpleasant
+thing to leave on a contributor's machine. A login launch passes `--hidden` and goes straight to the tray.
+
 **`ollama_model` has no default on purpose.** Picking a model the user has not pulled produces a confusing failure;
 an unset value routes to the setup screen, which is the correct behaviour.
+
+## Per-skill limits
+
+The two daily counts above say how big a day is. They say nothing about **where** the day's material comes from, and
+assembly used to take whatever the pool offered first — which, in id order, meant the earliest-added skills filled
+the whole set and the newest ones were never seen. Four skills and four cards a day should be one card from each.
+
+So the daily set is laid out **one item per skill before a second from any of them**, and each skill carries an
+optional cap of its own, set on its page rather than here:
+
+| Column                   | Blank (`NULL`)                             | `0`                         | `n`                         |
+| ------------------------ | ------------------------------------------ | --------------------------- | --------------------------- |
+| `skills.daily_cards`     | No cap; the global count and spread decide | Not today — parks the skill | At most `n` cards today     |
+| `skills.daily_questions` | Same                                       | Same                        | At most `n` questions today |
+
+`0` exists so a skill can be paused without deleting it, which would take its review history with it.
 
 ## Validation
 
@@ -71,14 +103,13 @@ Every write goes through `validateSetting()`
 This is load-bearing rather than polish: a `reminder_time` the reminder cannot parse makes it return "not due"
 forever, and nothing on screen would say why.
 
-| Key                                  | Accepted                                   | Normalised                |
-| ------------------------------------ | ------------------------------------------ | ------------------------- |
-| `daily_cards`, `daily_questions`     | A whole number, 0–50. Empty is **refused** | Trimmed                   |
-| `reminder_time`                      | 24-hour `H:MM` or `HH:MM`                  | Zero-padded to `HH:MM`    |
-| `reminder_enabled`                   | `true` / `false`                           | —                         |
-| `content_language`                   | `en` / `tr`                                | —                         |
-| `ollama_url`                         | A parseable `http:` or `https:` URL        | Trailing slashes stripped |
-| Anything else (incl. `github_token`) | Passes through                             | Trimmed                   |
+| Key                                                      | Accepted                                   | Normalised                |
+| -------------------------------------------------------- | ------------------------------------------ | ------------------------- |
+| `daily_cards`, `daily_questions`                         | A whole number, 0–50. Empty is **refused** | Trimmed                   |
+| `reminder_time`                                          | 24-hour `H:MM` or `HH:MM`                  | Zero-padded to `HH:MM`    |
+| `reminder_enabled`, `close_to_tray`, `launch_at_startup` | `true` / `false`                           | —                         |
+| `ollama_url`                                             | A parseable `http:` or `https:` URL        | Trailing slashes stripped |
+| Anything else (incl. `github_token`)                     | Passes through                             | Trimmed                   |
 
 Zero is a legitimate count — a user who wants only questions sets `daily_cards` to 0 deliberately. An **empty** field
 is not: `Number('')` is 0, so accepting it would silently mean "nothing today" rather than being refused.

@@ -78,3 +78,7 @@ Full engineering docs in [docs/](docs/README.md). Key entry points:
 Generated card content is a different matter: it derives from web sources under their own
 licenses, and Wikipedia-derived text carries CC BY-SA attribution obligations. Cards therefore
 always display their sources. See [docs/llm/rag-sources.md](docs/llm/rag-sources.md).
+
+The same applies inside this repository: `evals/sources/` holds frozen Wikipedia extracts used
+by the eval suite, under CC BY-SA 4.0 rather than MIT. Each file's origin and licence is
+recorded in [evals/sources/README.md](evals/sources/README.md).

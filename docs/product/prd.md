@@ -60,7 +60,7 @@ technical skills.
 | Daily set        | N cards + M questions, counts user-configurable, FSRS-scheduled           |
 | Favourites       | Save cards, questions, notes; export to Markdown                          |
 | Reminder         | Tray notification at a user-set time                                      |
-| Content language | Turkish or English, user setting                                          |
+| Content language | English only ([TD-19](../project/tech-debt.md))                           |
 | Storage          | Local SQLite; internet used only for research                             |
 
 Per-feature behaviour is in [feature-specs.md](feature-specs.md).
@@ -93,5 +93,6 @@ Per-feature behaviour is in [feature-specs.md](feature-specs.md).
   [ADR-0002](../architecture/adr/0002-constrained-decoding.md), which makes schema conformance a runtime guarantee —
   what remains model-dependent is content quality. See [../llm/prompts.md](../llm/prompts.md).
 - Whether constraining decoding to a JSON Schema costs prose quality. Unmeasured, and now in the eval scope.
-- Turkish output quality on small models may force a larger model or an English-only recommendation for Turkish users.
+- **Realised, and resolved by narrowing the product.** Turkish output on a 4B model was measured and did not hold; the
+  product is English-only rather than quietly bilingual ([TD-19](../project/tech-debt.md)).
 - How many skills before the daily set becomes unmanageable, and does the scheduler need a cap?

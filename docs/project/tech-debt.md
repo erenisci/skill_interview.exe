@@ -96,6 +96,12 @@ the development machine has 585 GB free — it is a decision to keep dev and pro
 decision stays open, and prompt fragility across model families stays unmeasured.
 **Remediation.** Cheap whenever it matters: pull a second family (`gemma3:4b`) and re-run the eval sets. Nothing in
 the design has to change for it — the model is a setting.
+**Accepted, not deferred (2026-09-04).** The author's call, and a reasonable one: `qwen3:4b` is deliberately close to
+the **floor** of what this product needs. It is the model chosen so that a user on a 4 GB laptop GPU is served, and
+anyone running something larger is running something better. Measuring a second small model would answer "does a
+different 4B family behave differently", which is interesting; it would not answer "is this good enough", which is
+what the judged metrics are for. So one model is the tested configuration, on purpose, and the eval scores are read
+as a floor rather than as a average.
 
 ### TD-08 — Toolchain pinned by a peer-dependency conflict
 
@@ -166,7 +172,7 @@ reader came for.
 strengthened once already with no measured effect, which is the signal to stop hand-tuning
 ([TD-10](#td-10--resolution-cannot-tell-a-technology-from-the-tooling-around-it) records the same lesson).
 
-### TD-14 — A skill needs three researched neighbours before it can be asked about
+### TD-14 — A skill needs three researched neighbours before it can be asked about — RESOLVED
 
 **What.** A pair of similar technologies yields roughly one usable separating claim per side, so three wrong answers
 require three neighbours. A user with three skills gets cards and no questions.
@@ -175,8 +181,18 @@ own technology while the separation degrades. Quantity bought at the cost of the
 ([ADR-0006](../architecture/adr/0006-pairwise-claims.md)).
 **Cost.** The app looks unfinished for a small skill list, and the empty state has to explain something subtle.
 **Contained by.** The questions view says why there is nothing yet rather than showing an empty panel.
-**Remediation.** Revisit if a larger model yields more claims per pair — this is a good candidate for the
-two-model comparison in M-7, since it is one number that decides how the product feels on day one.
+**Resolved 2026-09-04, by removing the wrong constraint.** A real user hit this immediately: four languages, three
+of them linked and so two neighbours short, the fourth unclassified and so with none. The screen's honest advice —
+"add 3 more skills in the same area" — is not advice anyone can act on. A CV does not grow on request.
+
+The safety rule was never "the distractor comes from a neighbour". It is that a claim must be **false of this
+skill**, which is established by generating the pair with both technologies in view
+([ADR-0006](../architecture/adr/0006-pairwise-claims.md)) — and that works for any two skills, related or not. The
+graph decides how _good_ a distractor is, not whether it is safe. So neighbours are still preferred and used first;
+what is missing is filled from the rest of the researched list. A question drawn from a less similar skill is easier
+than the ideal. No question at all is the product not working.
+**Worth remembering.** The constraint had been recorded, contained and explained for two milestones without anyone
+asking whether it was the right constraint. It was not.
 
 ### TD-15 — Cards and questions collapse to a two-point FSRS rating
 
@@ -232,3 +248,54 @@ language, using `looksLike` — the same function the eval scores with, so the g
 change, which is the order these belong in: fix the cause, keep the backstop.
 **Worth remembering.** Placement beat instruction strength. v1 already said "Write in Turkish"; it was simply too far
 from where the decision was made.
+**Superseded 2026-09-04 by [TD-19](#td-19--turkish-was-withdrawn-rather-than-fixed).** The primer was fixed; claims
+were not, and the product dropped Turkish altogether. This entry stays because the lesson about placement is real and
+still applies to every prompt here.
+
+### TD-19 — Turkish was withdrawn rather than fixed
+
+**What.** The product is English-only as of 2026-09-04. `ContentLanguage` is `'en'`, the setting and both language
+choosers are gone, and the eval's language set no longer has a Turkish case.
+**Why.** TD-18 fixed the primer card and stopped there. Claims never followed. On a real run every claim for four
+Türkçe skills came back in English, and two separate fixes were measured against a real model:
+
+| Attempt                                                                 | Result                             |
+| ----------------------------------------------------------------------- | ---------------------------------- |
+| Language requirement stated last — the fix that took the primer to 100% | 2 of 4 pairs; Türkçe still English |
+| A leading `language` field — the fix that repaired `resolve-source`     | 2 of 4; Türkçe came back **empty** |
+
+Both levers work elsewhere in this codebase and neither moved this number. The difference is plausible — a primer is
+one long body, where a closing instruction is the last thing read before writing; a claim is a five-word technical
+fragment, and English is where a 4B model's defaults live for those.
+**Cost, accepted.** A whole language, and the Turkish-speaking author is the first person it costs. The alternative
+was worse: with the guard in place a Türkçe user got silence, and without it they got English options inside a
+Turkish question — a tell that makes the answer guessable and the product dishonest about what it is.
+**What would reopen it.** A larger model ([TD-07](#td-07--the-recommended-model-is-a-hypothesis-not-a-measured-result--reframed-2026-09-02)),
+or a measured prompt that clears the language bar on claims as well as prose. The seam is deliberately still there:
+`ContentLanguage`, the `content_lang` columns, and `{{LANGUAGE}}` in every prompt all survive, so this is a narrowing
+rather than a demolition.
+
+### TD-20 — Nothing sweeps a job queue that only grows
+
+**What.** Jobs carry no foreign key to their skill — the link lives in a JSON payload — so nothing cascades. On one
+real database every skill had been deleted and 1,098 job rows remained, all pointing at ids that no longer existed.
+**Fixed, in three places, 2026-09-04.** Deleting a skill now drops its jobs (`JobsRepository.deleteForSkill`);
+migration 007 clears the rows already orphaned; and `enqueueUnique` refuses to hold two identical pending jobs, which
+is the backstop for the class of bug that produced the 1,098 in the first place — a caller re-enqueueing without
+bound ([TD-21](#td-21--a-job-that-re-enqueues-itself-had-no-termination-proof)).
+**Still open.** Completed rows are never swept. A long-lived database accumulates one `done` row per job forever.
+Harmless today at a few thousand rows; a startup sweep of `done` rows older than some age is the obvious fix, and it
+is deliberately not written yet because no measurement says the size matters.
+
+### TD-21 — A job that re-enqueues itself had no termination proof
+
+**What.** `generate-questions` re-enqueued any neighbour with no questions yet, and the comment in the code asserted
+this "settles instead of bouncing between two skills forever". It does not. When a set of skills cannot yield a
+question at all, that condition is permanently true, so every job woke its neighbours, which woke it back — 45
+pending jobs and climbing on a real machine, none of which could ever write anything.
+**Fixed 2026-09-04.** A neighbour is woken only when the run actually produced something it could use: new claims or
+new questions. Tested by asserting the handler enqueues exactly once and then nothing, across four runs on a pair
+that can never be asked about.
+**Worth remembering.** The termination argument was written down, in a comment, and was simply wrong. A loop whose
+exit depends on work succeeding needs a test that runs it when the work cannot succeed — which is exactly the case
+nobody thinks to write.

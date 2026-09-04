@@ -45,16 +45,28 @@ Two rules shape the whole schema:
 
 ### `skills`
 
-| Column         | Type        | Notes                                          |
-| -------------- | ----------- | ---------------------------------------------- |
-| `id`           | INTEGER PK  |                                                |
-| `name`         | TEXT        | As the user typed it                           |
-| `slug`         | TEXT UNIQUE | Normalized; the duplicate-detection key        |
-| `category`     | TEXT        | Assigned during research; user-correctable     |
-| `tags`         | TEXT        | JSON array                                     |
-| `status`       | TEXT        | `pending` · `researching` · `ready` · `failed` |
-| `content_lang` | TEXT        | Language its content was generated in          |
-| `created_at`   | TEXT        | ISO-8601                                       |
+| Column            | Type        | Notes                                                       |
+| ----------------- | ----------- | ----------------------------------------------------------- |
+| `id`              | INTEGER PK  |                                                             |
+| `name`            | TEXT        | As the user typed it                                        |
+| `slug`            | TEXT UNIQUE | Normalized; the duplicate-detection key                     |
+| `category`        | TEXT        | Assigned during research; user-correctable                  |
+| `tags`            | TEXT        | JSON array                                                  |
+| `status`          | TEXT        | `pending` · `researching` · `ready` · `failed`              |
+| `content_lang`    | TEXT        | Language its content was generated in                       |
+| `daily_cards`     | INTEGER     | NULL = no cap of its own · 0 = paused · n = at most n today |
+| `daily_questions` | INTEGER     | Same                                                        |
+| `created_at`      | TEXT        | ISO-8601                                                    |
+
+`content_lang` records what a card was written in and always says `en` today: Turkish was withdrawn
+([TD-19](../project/tech-debt.md)). The column stays because it is the seam a second language would return through,
+and because a row written under the old behaviour should keep saying what it actually was.
+
+The two `daily_*` columns are the per-skill override on the global counts. They exist because assembly used to take
+whatever the pool offered first, in id order — so the earliest-added skills filled the whole day and the newest ones
+were never seen. The set now spreads one item per skill before a second from any of them, and these cap what one
+skill may contribute ([configuration.md](../operations/configuration.md)). `0` parks a skill without deleting it and
+losing its review history.
 
 ### `skill_relations`
 

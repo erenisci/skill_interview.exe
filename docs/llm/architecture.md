@@ -87,7 +87,7 @@ likely to handle.
 **This is a hypothesis, not a measured result.** The eval harness exists to falsify it. It would be overturned by:
 
 - groundedness or distractor plausibility below the bar on the eval sets
-- Turkish output degrading enough to be unusable, when English is fine
+- prose quality degrading enough that a card is not worth reading
 - resolution refusal failing — a model that always picks _something_ rather than answering "none"
 
 Any of those escalates to an 8B model and a revised recommendation. Until then, one model is installed, and the disk
@@ -98,7 +98,7 @@ and VRAM cost stays at ~2.5 GB.
 [ADR-0002](../architecture/adr/0002-constrained-decoding.md) removed one half of this problem: schema conformance is
 now enforced by the runtime rather than earned by each model's prompt-following.
 
-What remains is **content quality** — distractor sharpness, grounding discipline, and Turkish fluency vary by model,
+What remains is **content quality** — distractor sharpness and grounding discipline vary by model,
 and to the user that variance looks like a product bug. The two candidate answers are unchanged:
 
 - a **supported-model allowlist**, refusing or warning on anything else, or
@@ -172,5 +172,5 @@ by code, and the model is asked to use them rather than to invent them ([../arch
 - **Every generated row records `model` and `prompt_version`.** Without them a regression cannot be attributed.
 - **All generation returns JSON parsed against a schema.** Prose responses are a parse failure, not a fallback.
 - **Retrieved text is untrusted input**, delimited as data and never concatenated as instructions ([guardrails.md](guardrails.md)).
-- **Content language is a generation parameter**, not a post-translation step. Turkish quality on 8B models is a
+- **Content language is a generation parameter**, not a post-translation step. A second language on a larger model is a
   known open risk.

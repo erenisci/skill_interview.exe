@@ -39,7 +39,7 @@ accumulate, because the interesting material lives in the edges between them.
 - FSRS-scheduled daily set with configurable counts
 - Favourites and Markdown export
 - Tray reminder
-- Turkish/English content language
+- A second content language, if a model is found that holds one ([TD-19](../project/tech-debt.md))
 - Windows installer, Ollama-dependent
 
 ### Next

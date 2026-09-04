@@ -44,7 +44,7 @@ Fixed inputs, so runs are comparable across prompt and model changes.
 | `grounding.jsonl`               | Skills with a fixed, frozen set of source documents                                                                                                                                                                                   | Does the card only state what the sources support?                     |
 | `distractor-plausibility.jsonl` | Related skill pairs with known real differences (nginx/Traefik, Java/Python, WSL/VM)                                                                                                                                                  | Are the wrong options plausible and actually wrong?                    |
 | `schema-conformance.jsonl`      | All five generation tasks                                                                                                                                                                                                             | Does output parse against its schema on the first attempt?             |
-| `language.jsonl`                | The same skills requested in Turkish and English                                                                                                                                                                                      | Correct language; technical terms untranslated                         |
+| `language.jsonl`                | Skills whose cards must read as English prose                                                                                                                                                                                         | Prose rather than a fragment; technical terms untranslated             |
 | `refusal.jsonl`                 | Skills with deliberately empty or useless retrieval                                                                                                                                                                                   | Does the job fail rather than inventing a card?                        |
 | `injection.jsonl`               | Source documents containing embedded instructions                                                                                                                                                                                     | Are they ignored? ([guardrails.md](guardrails.md))                     |
 | `disambiguation.jsonl`          | Two kinds. **Wrong subject:** Zustand/Pompeii, Tauri/the ancient people, Vitest/Playwright, Redis/JavaGuide. **Tooling around the subject:** PostgreSQL against `ANXS/postgresql`, an Ansible role ([TD-10](../project/tech-debt.md)) | Is the right candidate chosen, and is "none" chosen when it should be? |
@@ -60,7 +60,7 @@ non-reproducible and confuse a search regression with a prompt regression.
 | **Distractor plausibility** | Share of distractors that are plausible _and_ unambiguously wrong | The hardest generation problem                                                                                                                      |
 | **Ambiguity rate**          | Share of questions with a second defensible correct answer        | The most damaging single failure                                                                                                                    |
 | **Schema pass rate**        | Share of outputs parsing on the first attempt                     | Directly predicts retry cost and user-visible failures                                                                                              |
-| **Language accuracy**       | Correct language, terms untranslated                              | The Turkish risk, measured                                                                                                                          |
+| **Language accuracy**       | Reads as prose, terms untranslated                                | That a card is writing rather than a scraped fragment                                                                                               |
 | **Refusal rate**            | Share of empty-retrieval cases that correctly fail                | Proves the grounding rule holds under pressure                                                                                                      |
 | **Injection resistance**    | Share of embedded instructions ignored                            | Security, not quality                                                                                                                               |
 | **Resolution precision**    | Share of resolved sources that are actually the named technology  | A wrong source produces a fluent, cited, wrong card — the worst failure the product has ([ADR-0003](../architecture/adr/0003-source-resolution.md)) |
@@ -120,6 +120,12 @@ Both failing metrics were acted on the same day, and the set that found them mea
 | Injection resistance | 100%     | 100%  | Unchanged                                                                |
 | Schema pass rate     | 100%     | 100%  | Unchanged                                                                |
 
+**One model, deliberately, and the scores are a floor rather than an average.** `qwen3:4b` is close to the smallest
+model this product can be built on: it is the one that fits a 4 GB laptop GPU, so anyone running something larger is
+running something better. A second 4B family would answer "does another small model behave differently", which is
+interesting and does not decide anything here; what decides quality is the judged metrics on the model users are
+told to install ([TD-09](../project/tech-debt.md)).
+
 Seven of seven. That is a small set on one model and should be read as "nothing known is broken", not as proof of
 quality — the metrics that would say something about quality are the judged ones, and those are still unscored.
 
@@ -129,7 +135,7 @@ ADR-0002 for a guard doing its job; it now counts only genuine parse failures. A
 term retention it had no prose to demonstrate, punishing one failure twice.
 
 Two of them are already failing, and that is the harness working rather than the harness being wrong. Both failures
-were suspected in the docs long before this run — the Turkish risk since M-1, grounding under useless retrieval since
+were suspected in the docs long before this run — the language risk since M-1, grounding under useless retrieval since
 ADR-0003 — and neither was a number until now.
 
 The run also found a bug in **itself** before it found one in the model: the disambiguation fixtures conflated a
@@ -155,11 +161,11 @@ today. It joins the stray duplicated token seen during M-1 as evidence about 4B 
 
 Three questions, not one. Each needs a different sweep of the same sets:
 
-| Question                                             | Sweep                              | Why it matters                                                                                                                                           |
-| ---------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Does `qwen3:4b` clear the quality bar?**           | The recommended model alone        | It is the only model installed, and both dev and production run it. Failing here escalates to 8B ([TD-07](../project/tech-debt.md))                      |
-| **How much does output vary across model families?** | Two families at the same size      | Deferred: only one model is installed ([TD-09](../project/tech-debt.md)). Decides allowlist versus per-model variants ([TD-04](../project/tech-debt.md)) |
-| **Does constrained decoding cost prose quality?**    | Same model, `format` on versus off | [ADR-0002](../architecture/adr/0002-constrained-decoding.md) accepted this risk without measuring it                                                     |
+| Question                                             | Sweep                              | Why it matters                                                                                                                      |
+| ---------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Does `qwen3:4b` clear the quality bar?**           | The recommended model alone        | It is the only model installed, and both dev and production run it. Failing here escalates to 8B ([TD-07](../project/tech-debt.md)) |
+| **How much does output vary across model families?** | Two families at the same size      | **Not planned.** One model is the tested configuration on purpose — see below ([TD-09](../project/tech-debt.md))                    |
+| **Does constrained decoding cost prose quality?**    | Same model, `format` on versus off | [ADR-0002](../architecture/adr/0002-constrained-decoding.md) accepted this risk without measuring it                                |
 
 The third is new and easy to overlook: constraining the sampler to a grammar guarantees the output _parses_, and
 says nothing about whether it reads well. For a product whose value is the quality of the prose, that is worth a
