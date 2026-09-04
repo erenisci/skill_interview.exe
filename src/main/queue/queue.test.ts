@@ -275,3 +275,106 @@ describe('claiming', () => {
     expect(maxInFlight).toBe(1);
   });
 });
+
+describe('JobsRepository.lastFailureFor', () => {
+  it('returns the reason the skill\u2019s work gave up', () => {
+    const job = jobs.enqueue('research', { skillId: 7 }, START.toISOString());
+    jobs.finish(job.id, 'failed', START.toISOString(), 'nothing resolved');
+
+    expect(jobs.lastFailureFor(7)).toBe('nothing resolved');
+  });
+
+  it('does not confuse skill 1 with skill 12', () => {
+    // The payload is matched with LIKE, so the pattern has to be bounded on both sides.
+    // Without the closing brace, skill 1 would inherit every failure of 10 through 19.
+    const job = jobs.enqueue('research', { skillId: 12 }, START.toISOString());
+    jobs.finish(job.id, 'failed', START.toISOString(), 'twelve failed');
+
+    expect(jobs.lastFailureFor(12)).toBe('twelve failed');
+    expect(jobs.lastFailureFor(1)).toBeNull();
+  });
+
+  it('returns the most recent failure when a skill has failed more than once', () => {
+    const first = jobs.enqueue('research', { skillId: 3 }, START.toISOString());
+    jobs.finish(first.id, 'failed', START.toISOString(), 'the old reason');
+    const second = jobs.enqueue('research', { skillId: 3 }, START.toISOString());
+    jobs.finish(second.id, 'failed', START.toISOString(), 'the current reason');
+
+    expect(jobs.lastFailureFor(3)).toBe('the current reason');
+  });
+
+  it('is null for a skill that has not failed', () => {
+    jobs.enqueue('research', { skillId: 4 }, START.toISOString());
+    expect(jobs.lastFailureFor(4)).toBeNull();
+  });
+});
+
+describe('JobsRepository.enqueueUnique', () => {
+  it('declines to hold two of the same pending job', () => {
+    const first = jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString());
+    const second = jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString());
+
+    expect(first).not.toBeNull();
+    expect(second).toBeNull();
+    expect(jobs.countByStatus('pending')).toBe(1);
+  });
+
+  it('keeps jobs for different skills apart', () => {
+    jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString());
+    jobs.enqueueUnique('generate-questions', { skillId: 4 }, START.toISOString());
+    expect(jobs.countByStatus('pending')).toBe(2);
+  });
+
+  it('keeps jobs of different kinds apart', () => {
+    jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString());
+    jobs.enqueueUnique('research', { skillId: 3 }, START.toISOString());
+    expect(jobs.countByStatus('pending')).toBe(2);
+  });
+
+  it('enqueues again once the previous one is no longer pending', () => {
+    // Work already finished may legitimately need doing again with what arrived since.
+    const first = jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString());
+    jobs.finish(first?.id ?? 0, 'done', START.toISOString());
+
+    expect(
+      jobs.enqueueUnique('generate-questions', { skillId: 3 }, START.toISOString()),
+    ).not.toBeNull();
+  });
+
+  it('caps a caller that would otherwise queue without bound', () => {
+    // The shape of the bug this backstops: 1,098 rows on a real database, of which 514
+    // were pending copies of the same handful of jobs.
+    for (let i = 0; i < 50; i += 1) {
+      jobs.enqueueUnique('generate-questions', { skillId: 9 }, START.toISOString());
+    }
+    expect(jobs.countByStatus('pending')).toBe(1);
+  });
+});
+
+describe('JobsRepository.deleteForSkill', () => {
+  it('takes every job belonging to the skill, whatever its state', () => {
+    const pending = jobs.enqueue('research', { skillId: 5 }, START.toISOString());
+    const failed = jobs.enqueue('generate-questions', { skillId: 5 }, START.toISOString());
+    jobs.finish(failed.id, 'failed', START.toISOString(), 'nothing resolved');
+    const done = jobs.enqueue('classify', { skillId: 5 }, START.toISOString());
+    jobs.finish(done.id, 'done', START.toISOString());
+
+    expect(jobs.deleteForSkill(5)).toBe(3);
+    expect(jobs.findById(pending.id)).toBeNull();
+    expect(jobs.findById(failed.id)).toBeNull();
+    expect(jobs.findById(done.id)).toBeNull();
+  });
+
+  it('leaves other skills alone, including the ones whose ids share a prefix', () => {
+    // Bounded on both sides, or skill 1 takes 10 through 19 with it.
+    jobs.enqueue('research', { skillId: 1 }, START.toISOString());
+    const twelve = jobs.enqueue('research', { skillId: 12 }, START.toISOString());
+
+    expect(jobs.deleteForSkill(1)).toBe(1);
+    expect(jobs.findById(twelve.id)).not.toBeNull();
+  });
+
+  it('is a no-op for a skill with no jobs', () => {
+    expect(jobs.deleteForSkill(99)).toBe(0);
+  });
+});

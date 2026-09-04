@@ -44,6 +44,30 @@ export class JobsRepository {
   }
 
   /**
+   * Enqueues unless the identical job is already waiting to run.
+   *
+   * A second copy of a job that has not started yet can do nothing the first will not do,
+   * so it is pure duplicated work. This is defence in depth rather than the fix for any
+   * one bug: a caller that over-enqueues is a bug in that caller, and one was found —
+   * question generation re-woke its neighbours unconditionally and reached 1,098 rows on a
+   * real database. But the queue is the place where such a mistake becomes unbounded, so
+   * it declines to hold two of the same.
+   *
+   * `running` and `failed` rows are deliberately not matched: work already in flight may
+   * legitimately need doing again with what arrived since, and a failed job is history.
+   */
+  enqueueUnique(kind: JobKind, payload: object, now: string): Job | null {
+    const serialized = JSON.stringify(payload);
+    const existing = this.db
+      .prepare(
+        `SELECT 1 AS present FROM jobs WHERE kind = ? AND payload = ? AND status = 'pending'`,
+      )
+      .get(kind, serialized) as { present: number } | undefined;
+    if (existing) return null;
+    return this.enqueue(kind, payload, now);
+  }
+
+  /**
    * Takes the oldest job that is due, marking it `running` in the same transaction so a
    * second caller cannot claim it. A job waiting out a backoff (`retry_at` in the future)
    * is skipped rather than blocking the ones behind it.
@@ -100,6 +124,43 @@ export class JobsRepository {
   findById(id: number): Job | null {
     const row = this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as JobRow | undefined;
     return row ? toJob(row) : null;
+  }
+
+  /**
+   * Why this skill's work gave up, for the screen to show.
+   *
+   * A red `failed` badge with no reason is indistinguishable from a broken app, and the
+   * reason here is genuinely actionable — "none of the 4 name-matching candidates is about
+   * Java" tells the user their skill needs a more specific name, which nothing else does.
+   *
+   * Matched on the payload rather than a column, because a job's link to its skill lives
+   * in its payload. The pattern carries the closing brace so that it is bounded on both
+   * sides — without it, skill 1 would match every `{"skillId":1x}` there is.
+   */
+  lastFailureFor(skillId: number): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT error FROM jobs
+         WHERE status = 'failed' AND payload LIKE ? AND error IS NOT NULL
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get(`%"skillId":${String(skillId)}}%`) as { error: string } | undefined;
+    return row?.error ?? null;
+  }
+
+  /**
+   * Drops every job belonging to a skill, whatever its state.
+   *
+   * Jobs carry no foreign key — a job's link to its skill lives in a JSON payload — so
+   * nothing cascades on deletion, and one real database ended up holding 1,098 rows for
+   * skills that no longer existed. Failed rows go too: their stored reason is only useful
+   * on the skill's own row, which is gone.
+   */
+  deleteForSkill(skillId: number): number {
+    return this.db.prepare('DELETE FROM jobs WHERE payload LIKE ?').run(
+      // Bounded on both sides, or skill 1 would take 10 through 19 with it.
+      `%"skillId":${String(skillId)}}%`,
+    ).changes;
   }
 
   countByStatus(status: JobStatus): number {

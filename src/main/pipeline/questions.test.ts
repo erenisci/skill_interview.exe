@@ -4,6 +4,7 @@ import type { Database as Db } from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate } from '../db/migrate';
+import type { JobHandler } from '../queue/queue';
 import { CardsRepository } from '../db/repositories/cards';
 import { JobsRepository } from '../db/repositories/jobs';
 import { QuestionsRepository } from '../db/repositories/questions';
@@ -736,5 +737,242 @@ describe('feedback — a flag that can be acted on', () => {
       reason: 'too-easy',
       count: 1,
     });
+  });
+});
+
+describe('question generation — the queue has to settle', () => {
+  /** Two linked skills that can never yield a question: a question needs three distractors. */
+  function unaskablePair(): { a: Skill; b: Skill } {
+    const a = addSkill('nginx');
+    addPrimer(a);
+    const b = addSkill('Traefik');
+    addPrimer(b);
+    relations.replaceFor(a.id, [
+      { skillAId: a.id, skillBId: b.id, kind: 'same-category', strength: 0.9 },
+    ]);
+    return { a, b };
+  }
+
+  const pendingCount = (): number =>
+    (
+      db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM jobs WHERE kind = 'generate-questions' AND status = 'pending'",
+        )
+        .get() as { n: number }
+    ).n;
+
+  /** Jobs the handler itself enqueued — `jobFor` adds a pending row of its own. */
+  async function enqueuedBy(handler: JobHandler, skillId: number): Promise<number> {
+    const before = pendingCount();
+    await handler(jobFor(skillId));
+    return pendingCount() - before - 1;
+  }
+
+  it('stops re-enqueueing once there is nothing new to offer a neighbour', async () => {
+    // The bug this exists to prevent, found on a real database with 45 pending jobs and
+    // climbing: the "neighbour has no questions yet" guard is permanently true when no
+    // question can ever be built, so each run re-enqueued its neighbour, which re-enqueued
+    // it back, forever.
+    const { a, b } = unaskablePair();
+    // One claim per side is enough to be written, and never enough to fill a question.
+    const thin = llm({
+      'contrastive-claims': () => ({
+        aClaims: ['handles TLS termination'],
+        bClaims: ['uses TOML'],
+      }),
+    });
+    const handler = handlerWith(thin);
+
+    // The first run writes claims, so waking the neighbour is right.
+    expect(await enqueuedBy(handler, a.id)).toBe(1);
+
+    // Every run after it has nothing new, and must add nothing at all.
+    expect(await enqueuedBy(handler, b.id)).toBe(0);
+    expect(await enqueuedBy(handler, a.id)).toBe(0);
+    expect(await enqueuedBy(handler, b.id)).toBe(0);
+
+    expect(questions.listBySkill(a.id)).toHaveLength(0);
+  });
+
+  it('still wakes a neighbour on the run that actually writes claims', async () => {
+    const { a, b } = unaskablePair();
+    await handlerWith(llm())(jobFor(a.id));
+
+    const queued = db
+      .prepare("SELECT payload FROM jobs WHERE kind = 'generate-questions' AND status = 'pending'")
+      .all() as { payload: string }[];
+    expect(queued.map((row) => row.payload)).toContain(JSON.stringify({ skillId: b.id }));
+  });
+});
+
+describe('question generation — a CV is not a thing you can grow on request', () => {
+  /** One classified pair plus an unclassified skill, which is what a real list looks like. */
+  function realisticList(): { java: Skill; others: Skill[] } {
+    const js = addSkill('JavaScript');
+    addPrimer(js);
+    const ts = addSkill('TypeScript');
+    addPrimer(ts);
+    const py = addSkill('Python');
+    addPrimer(py);
+    skills.setStatus(js.id, 'ready');
+    skills.setStatus(ts.id, 'ready');
+    skills.setStatus(py.id, 'ready');
+
+    // Classification linked the three, and failed outright on the fourth.
+    relations.replaceFor(js.id, [
+      { skillAId: js.id, skillBId: ts.id, kind: 'same-category', strength: 0.5 },
+      { skillAId: js.id, skillBId: py.id, kind: 'same-category', strength: 0.5 },
+    ]);
+
+    const java = addSkill('Java');
+    addPrimer(java);
+    skills.setStatus(java.id, 'ready');
+    return { java, others: [js, ts, py] };
+  }
+
+  it('asks about a skill the graph left with no neighbours at all', async () => {
+    // Found live: Java failed classification, so it had zero relations, and the screen told
+    // the user to "add 3 more skills in the same area" — advice nobody can act on.
+    const { java } = realisticList();
+
+    const result = await handlerWith(llm())(jobFor(java.id));
+
+    expect(result.ok).toBe(true);
+    expect(questions.listBySkill(java.id).length).toBeGreaterThan(0);
+  });
+
+  it('asks about a skill with two neighbours, one short of the three it needs', async () => {
+    const js = addSkill('JavaScript');
+    addPrimer(js);
+    const ts = addSkill('TypeScript');
+    addPrimer(ts);
+    const py = addSkill('Python');
+    addPrimer(py);
+    for (const s of [js, ts, py]) skills.setStatus(s.id, 'ready');
+    relations.replaceFor(js.id, [
+      { skillAId: js.id, skillBId: ts.id, kind: 'same-category', strength: 0.5 },
+      { skillAId: js.id, skillBId: py.id, kind: 'same-category', strength: 0.5 },
+    ]);
+    // A fourth, unrelated skill is enough to fill the pool.
+    const redis = addSkill('Redis');
+    addPrimer(redis);
+    skills.setStatus(redis.id, 'ready');
+
+    const result = await handlerWith(llm())(jobFor(js.id));
+
+    expect(result.ok).toBe(true);
+    expect(questions.listBySkill(js.id).length).toBeGreaterThan(0);
+  });
+
+  it('leaves an unrelated skill alone when there are already enough neighbours', async () => {
+    // Preference is only observable when there is a choice: with three real neighbours the
+    // unrelated skill must never be reached for. The first draft shuffled the two tiers
+    // together and could drop a neighbour in its favour.
+    const js = addSkill('JavaScript');
+    addPrimer(js);
+    const near = ['TypeScript', 'Python', 'Ruby'].map((name) => {
+      const s = addSkill(name);
+      addPrimer(s);
+      skills.setStatus(s.id, 'ready');
+      return s;
+    });
+    skills.setStatus(js.id, 'ready');
+    relations.replaceFor(
+      js.id,
+      near.map((n) => ({
+        skillAId: js.id,
+        skillBId: n.id,
+        kind: 'same-category' as const,
+        strength: 0.5,
+      })),
+    );
+
+    const unrelated = addSkill('Redis');
+    addPrimer(unrelated);
+    skills.setStatus(unrelated.id, 'ready');
+
+    await handlerWith(llm())(jobFor(js.id));
+
+    const borrowed = new Set(
+      questions
+        .listBySkill(js.id)
+        .flatMap((q) => q.options.filter((o) => !o.isCorrect).map((o) => o.sourceSkillId)),
+    );
+    expect(borrowed.size).toBeGreaterThan(0);
+    expect(borrowed.has(unrelated.id)).toBe(false);
+  });
+
+  it('does not borrow from a skill that has not finished research', async () => {
+    const js = addSkill('JavaScript');
+    addPrimer(js);
+    skills.setStatus(js.id, 'ready');
+    addSkill('Rust'); // pending, no primer
+
+    const result = await handlerWith(llm())(jobFor(js.id));
+
+    expect(result.ok).toBe(true);
+    expect(questions.listBySkill(js.id)).toHaveLength(0);
+  });
+});
+
+describe('question generation — one fact, stored once', () => {
+  it('drops a claim the skill already has in different words', async () => {
+    // Measured on a real run: the same skill produced "uses significant indentation for
+    // code structure" against one neighbour and "uses significant indentation to define
+    // code blocks." against another. Both true, both valid — and one fact, which would
+    // look careless as two options in the same question.
+    const python = addSkill('Python');
+    addPrimer(python);
+    for (const name of ['Java', 'Ruby']) {
+      const other = addSkill(name);
+      addPrimer(other);
+      relations.replaceFor(python.id, [
+        ...relations.listFor(python.id).map((r) => ({
+          skillAId: r.skillAId,
+          skillBId: r.skillBId,
+          kind: r.kind,
+          strength: r.strength,
+        })),
+        { skillAId: python.id, skillBId: other.id, kind: 'same-category' as const, strength: 0.6 },
+      ]);
+    }
+
+    // Both pairs return the same fact, worded differently.
+    const repeats = llm({
+      'contrastive-claims': () => ({
+        aClaims: ['uses significant indentation for code structure'],
+        bClaims: ['runs on a virtual machine after compilation to bytecode'],
+      }),
+    });
+
+    await handlerWith(repeats)(jobFor(python.id));
+
+    const texts = questions.claimTextsFor(python.id);
+    expect(texts).toHaveLength(1);
+  });
+
+  it('keeps two genuinely different claims from different neighbours', async () => {
+    const python = addSkill('Python');
+    addPrimer(python);
+    const java = addSkill('Java');
+    addPrimer(java);
+    relations.replaceFor(python.id, [
+      { skillAId: python.id, skillBId: java.id, kind: 'same-category', strength: 0.6 },
+    ]);
+
+    const distinct = llm({
+      'contrastive-claims': () => ({
+        aClaims: [
+          'uses significant indentation for code structure',
+          'resolves attribute lookups at run time rather than at compile time',
+        ],
+        bClaims: ['runs on a virtual machine after compilation to bytecode'],
+      }),
+    });
+
+    await handlerWith(distinct)(jobFor(python.id));
+
+    expect(questions.claimTextsFor(python.id)).toHaveLength(2);
   });
 });

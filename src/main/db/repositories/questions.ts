@@ -164,12 +164,13 @@ export class QuestionsRepository {
   }
 
   /** Every active question in the library, for the scheduler to pick candidates from. */
-  allActiveIds(): readonly number[] {
+  /** Every askable question with the skill it belongs to. */
+  allActiveWithSkill(): readonly { id: number; skillId: number }[] {
     return (
-      this.db.prepare("SELECT id FROM questions WHERE status = 'active'").all() as {
-        id: number;
-      }[]
-    ).map((row) => row.id);
+      this.db
+        .prepare("SELECT id, skill_id FROM questions WHERE status = 'active' ORDER BY id")
+        .all() as { id: number; skill_id: number }[]
+    ).map((row) => ({ id: row.id, skillId: row.skill_id }));
   }
 
   countBySkill(skillId: number, status: QuestionStatus = 'active'): number {
@@ -277,6 +278,23 @@ export class QuestionsRepository {
    * nothing about how nginx differs from HAProxy, so regenerating one pair must not
    * discard the other ([ADR-0006](../../../../docs/architecture/adr/0006-pairwise-claims.md)).
    */
+  /**
+   * The normalised text of every claim this skill already has, whichever pair produced it.
+   *
+   * Pairs are written independently, so the same fact arrives twice with different wording:
+   * one real run produced "uses significant indentation for code structure" against one
+   * neighbour and "uses significant indentation to define code blocks." against another.
+   * Both are true and both would pass validation — but they are one fact, and a question
+   * drawing both as options looks careless.
+   */
+  claimTextsFor(skillId: number): readonly string[] {
+    return (
+      this.db.prepare('SELECT text FROM claims WHERE skill_id = ?').all(skillId) as {
+        text: string;
+      }[]
+    ).map((row) => row.text);
+  }
+
   replaceClaimsForPair(
     skillId: number,
     contrastSkillId: number,

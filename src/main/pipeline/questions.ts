@@ -53,6 +53,20 @@ import {
  * ([ADR-0006](../../../docs/architecture/adr/0006-pairwise-claims.md)).
  */
 
+/**
+ * **Claims in the requested language are still an open problem, and this schema is the
+ * honest state of it.**
+ *
+ * Two fixes were tried and measured against frozen sources and a real model. Stating the
+ * requirement last — the change that took the primer card from 33% to 100% (TD-18) — scored
+ * 2 of 4 pairs, with Türkçe answered in English. Adding a leading `language` field to make
+ * the model declare its intent first, the lever that fixed `resolve-source`, also scored
+ * 2 of 4, and failed differently: Türkçe pairs came back empty rather than wrong.
+ *
+ * Neither is a fix, so neither is kept. What ships is the simpler of the two, and the guard
+ * in `ensurePairClaims` turns the failure into a visible absence rather than an English
+ * option in a Turkish question ([TD-19](../../../docs/project/tech-debt.md)).
+ */
 const ContrastiveSchema = structured(
   'contrastive-claims',
   z.object({ aClaims: z.array(z.string()), bClaims: z.array(z.string()) }),
@@ -122,7 +136,7 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
       return ok(undefined);
     }
 
-    const neighbours = neighbourSkills(deps, skill.id);
+    const neighbours = borrowFrom(deps, skill.id, random);
     if (neighbours.length === 0) {
       // Not an error, and not permanent: nothing else has been researched yet. Each
       // neighbour's own job re-enqueues this one once it exists.
@@ -134,7 +148,9 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
     // already asked about must not be asked twice.
     const asked = new Set(deps.questions.askedClaimTexts(skill.id).map(normalizeClaim));
 
-    const chosen = shuffle(neighbours, random).slice(0, MAX_PAIRS_PER_RUN);
+    // Already ordered by preference and shuffled within each tier, so this takes the best
+    // available rather than a random sample of everything.
+    const chosen = neighbours.slice(0, MAX_PAIRS_PER_RUN);
     const dropped: string[] = [];
     const nameOf = new Map(chosen.map((n) => [n.id, n.name]));
 
@@ -146,9 +162,11 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
     // one, which is also closer to what the product promises: the wrong answers are drawn
     // from the user's skill list, not from one entry in it
     // ([ADR-0006](../../../docs/architecture/adr/0006-pairwise-claims.md)).
+    let wroteClaims = false;
     for (const neighbour of chosen) {
       const pair = await ensurePairClaims(skill, primer, neighbour, deps, now);
       if (!pair.ok) dropped.push(`pair-failed:${pair.error.code}`);
+      else if (pair.value) wroteClaims = true;
     }
 
     const own = deps.questions
@@ -184,12 +202,24 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
       }
     }
 
-    // A neighbour with no questions of its own can now be asked about. Only those with
-    // nothing yet, so this settles instead of bouncing between two skills forever.
-    const createdAt = now().toISOString();
-    for (const neighbour of neighbours) {
-      if (deps.questions.countBySkill(neighbour.id) === 0) {
-        deps.jobs.enqueue('generate-questions', { skillId: neighbour.id }, createdAt);
+    // A neighbour with no questions of its own can now be asked about — but only if this
+    // run actually produced something it could use.
+    //
+    // **The "has no questions yet" guard alone does not terminate**, and the comment here
+    // used to claim it did. When a set of skills cannot yield a question at all — three
+    // neighbours are needed and only two exist ([TD-14](../../../docs/project/tech-debt.md))
+    // — that condition stays true forever, so each job re-enqueued its neighbours, which
+    // re-enqueued it back. Found on a real database with 45 pending jobs and climbing, none
+    // of which could ever write anything.
+    //
+    // New claims or new questions are the only things a neighbour's next run could benefit
+    // from. Neither means there is nothing to wake it for.
+    if (wroteClaims || written > 0) {
+      const createdAt = now().toISOString();
+      for (const neighbour of neighbours) {
+        if (deps.questions.countBySkill(neighbour.id) === 0) {
+          deps.jobs.enqueueUnique('generate-questions', { skillId: neighbour.id }, createdAt);
+        }
       }
     }
 
@@ -211,13 +241,54 @@ function primerFor(deps: QuestionsDeps, skillId: number): Card | null {
 }
 
 /** Everything the graph says is next to this skill, resolved to skills that still exist. */
-function neighbourSkills(deps: QuestionsDeps, skillId: number): readonly Skill[] {
-  const found: Skill[] = [];
+/**
+ * Who this skill can borrow wrong answers from — graph neighbours first, then anyone else
+ * on the list.
+ *
+ * Restricting this to graph neighbours was wrong, and a real user found it immediately.
+ * Four languages produced no questions at all: three were linked and so had two neighbours
+ * each, one short of the three distractors a question needs, and the fourth had failed
+ * classification and so had none. The screen's honest answer — "add 3 more skills in the
+ * same area" — is not an answer at all. Nobody's CV grows on request, and telling someone
+ * to invent three more Java-like skills is telling them the product does not work.
+ *
+ * The safety rule was never "the distractor comes from a neighbour". It is that a claim
+ * must be **false of this skill**, and that is established by generating the pair with both
+ * technologies in view ([ADR-0006](../../../docs/architecture/adr/0006-pairwise-claims.md))
+ * — which works for any two skills, related or not. The graph decides how *good* a
+ * distractor is, not whether it is safe.
+ *
+ * So neighbours come first and are still preferred, because a similar technology makes the
+ * sharper question. Only what is missing is filled from the rest of the researched list. A
+ * question whose wrong answers come from a less similar skill is easier than the ideal; no
+ * question at all is the product failing.
+ *
+ * The shuffle happens **within each tier rather than across both**, which is the whole
+ * point and was wrong in the first draft: shuffling the combined list and taking the first
+ * few can drop a real neighbour in favour of an unrelated skill, quietly undoing the
+ * preference this function exists to express. A test caught it.
+ */
+function borrowFrom(deps: QuestionsDeps, skillId: number, random: () => number): readonly Skill[] {
+  const related: Skill[] = [];
+  const seen = new Set<number>([skillId]);
+
   for (const relation of deps.relations.listFor(skillId)) {
     const other = deps.skills.findById(RelationsRepository.otherSide(relation, skillId));
-    if (other) found.push(other);
+    if (other && !seen.has(other.id)) {
+      seen.add(other.id);
+      related.push(other);
+    }
   }
-  return found;
+  if (related.length >= DISTRACTORS_NEEDED) return shuffle(related, random);
+
+  // The fallback tier is filtered on having material rather than on `status`, because
+  // material is the actual requirement: a pair cannot be separated from a skill with no
+  // primer to read. Related skills are left unfiltered — `ensurePairClaims` reports that
+  // case as `neighbour-unresearched`, a diagnostic worth keeping.
+  const rest = deps.skills
+    .list()
+    .filter((other) => !seen.has(other.id) && primerFor(deps, other.id) !== null);
+  return [...shuffle(related, random), ...shuffle(rest, random)];
 }
 
 /**
@@ -281,14 +352,15 @@ export async function generatePairClaims(
   });
 }
 
+/** Whether this call actually wrote new claims, which is what a neighbour could gain from. */
 async function ensurePairClaims(
   skill: Skill,
   primer: Card,
   neighbour: Skill,
   deps: QuestionsDeps,
   now: () => Date,
-): Promise<Result<void>> {
-  if (deps.questions.pairWritten(skill.id, neighbour.id)) return ok(undefined);
+): Promise<Result<boolean>> {
+  if (deps.questions.pairWritten(skill.id, neighbour.id)) return ok(false);
 
   const neighbourPrimer = primerFor(deps, neighbour.id);
   if (!neighbourPrimer) {
@@ -307,10 +379,26 @@ async function ensurePairClaims(
 
   const createdAt = now().toISOString();
 
+  // Pairs are generated independently, so the same fact comes back twice in different
+  // words — measured on a real run, against two different neighbours. Dropping the later
+  // wording keeps the pool honest without another model call; the earlier one is already
+  // stored and already the subject of whatever question used it.
+  const seen = new Set(
+    [...deps.questions.claimTextsFor(skill.id), ...deps.questions.claimTextsFor(neighbour.id)].map(
+      normalizeClaim,
+    ),
+  );
+  const fresh = (text: string): boolean => {
+    const key = normalizeClaim(text);
+    if (key.length === 0 || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  };
+
   deps.questions.replaceClaimsForPair(
     skill.id,
     neighbour.id,
-    generated.value.aClaims.map((text) => ({
+    generated.value.aClaims.filter(fresh).map((text) => ({
       skillId: skill.id,
       contrastSkillId: neighbour.id,
       cardId: primer.id,
@@ -323,7 +411,7 @@ async function ensurePairClaims(
   deps.questions.replaceClaimsForPair(
     neighbour.id,
     skill.id,
-    generated.value.bClaims.map((text) => ({
+    generated.value.bClaims.filter(fresh).map((text) => ({
       skillId: neighbour.id,
       contrastSkillId: skill.id,
       cardId: neighbourPrimer.id,
@@ -333,7 +421,7 @@ async function ensurePairClaims(
       createdAt,
     })),
   );
-  return ok(undefined);
+  return ok(true);
 }
 
 async function buildOne(
