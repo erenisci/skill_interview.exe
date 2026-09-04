@@ -12,23 +12,25 @@ updated: 2026-09-02
 
 GitHub Actions, on Windows runners — this is a Windows-only product, so building anywhere else proves nothing.
 
-**Wired today** (`.github/workflows/ci.yml`): install, type check, lint, test, and a compile-only build — every
-stage below that does not depend on something that does not exist yet. **Not wired yet:** the E2E stage, because no
-Playwright suite has been written, and the Package stage, because `electron-builder` has no build config (icon,
-appId, signing). Both are M-8 scope — "Windows installer", "CI build" — per
-[../project/roadmap.md](../project/roadmap.md), and land in the workflow as soon as the thing they test exists.
+**Wired today** (`.github/workflows/ci.yml`): install, type check, lint, test, a compile-only build, and — on a tag
+or a manual dispatch — the Windows installer, uploaded as a workflow artifact. Packaging is kept off ordinary
+branch pushes deliberately: it downloads Electron, rebuilds a native module and emits ~120 MB, which is not worth
+doing per commit.
+
+**Still not wired:** the E2E stage. No Playwright suite has been written, and a job that always passes because it
+runs nothing would be worse than the honest gap.
 
 ## Pipeline Stages
 
-| Stage                    | Command                                               | Blocks merge | Wired                                          |
-| ------------------------ | ----------------------------------------------------- | ------------ | ---------------------------------------------- |
-| Install                  | `npm ci`, with the Electron native rebuild            | Yes          | Yes                                            |
-| Type check               | `npm run typecheck`                                   | Yes          | Yes                                            |
-| Lint                     | `npm run lint`                                        | Yes          | Yes                                            |
-| Unit + integration tests | `npm test`                                            | Yes          | Yes                                            |
-| E2E                      | `npm run test:e2e` — Playwright with stubbed adapters | Yes          | No — no e2e suite exists (M-8)                 |
-| Build                    | `npm run build` — compiles the app, no installer      | Yes          | Yes                                            |
-| Package                  | `npm run package` — produces the Windows installer    | No           | No — no `electron-builder` config exists (M-8) |
+| Stage                    | Command                                               | Blocks merge | Wired                             |
+| ------------------------ | ----------------------------------------------------- | ------------ | --------------------------------- |
+| Install                  | `npm ci`, with the Electron native rebuild            | Yes          | Yes                               |
+| Type check               | `npm run typecheck`                                   | Yes          | Yes                               |
+| Lint                     | `npm run lint`                                        | Yes          | Yes                               |
+| Unit + integration tests | `npm test`                                            | Yes          | Yes                               |
+| E2E                      | `npm run test:e2e` — Playwright with stubbed adapters | Yes          | No — no e2e suite exists          |
+| Build                    | `npm run build` — compiles the app, no installer      | Yes          | Yes                               |
+| Package                  | `npm run package` — produces the Windows installer    | No           | Yes — on tags and manual dispatch |
 
 **The eval suite does not run in CI.** It needs a real model, which means a multi-gigabyte download and a GPU-less
 runner producing results that would not match a user's machine. Worse, the judged metrics — groundedness, distractor
@@ -39,16 +41,17 @@ This is a deliberate gap. CI proves the code works; it cannot prove the content 
 
 ## Triggers
 
-| Event                  | Runs                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------- |
-| Push to a branch       | Wired stages                                                                  |
-| Pull request to `main` | Wired stages                                                                  |
-| Push to `main`         | Wired stages                                                                  |
-| Tag `v*`               | Designed to also attach the installer to the GitHub release — not wired (M-8) |
-| Manual dispatch        | Wired stages — for testing the workflow itself                                |
+| Event                  | Runs                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| Push to a branch       | Wired stages                                            |
+| Pull request to `main` | Wired stages                                            |
+| Push to `main`         | Wired stages                                            |
+| Tag `v*`               | Wired stages, plus the installer as a workflow artifact |
+| Manual dispatch        | Wired stages — for testing the workflow itself          |
 
-Nothing deploys anywhere. There is no server, so "CD" means producing a signed installer and attaching it to a
-release, and a human decides when that happens. That half does not exist yet; today this is CI only.
+Nothing deploys anywhere. There is no server, so "CD" means producing an installer and attaching it to a release,
+and a human decides when that happens. The installer is produced; attaching it to a GitHub release is still a manual
+step, and it is **unsigned** — there is no certificate, so first run shows SmartScreen.
 
 ## Gates
 

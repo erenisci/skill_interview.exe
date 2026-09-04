@@ -44,7 +44,7 @@ skill_interview.exe/
 │   │   └── export/            # favourites → Markdown; markdown.ts is pure, favorites.ts hydrates
 │   ├── renderer/              # React UI — no DB, no network, no Node
 │   │   ├── App.tsx
-│   │   ├── views/             # setup · skills · questions · daily set · favourites (settings later)
+│   │   ├── views/             # setup · skills · questions · daily set · favourites · settings
 │   │   └── styles/
 │   ├── preload/               # contextBridge surface, nothing else
 │   └── shared/                # types crossing the IPC boundary; no runtime deps
@@ -53,7 +53,7 @@ skill_interview.exe/
 │       └── result.ts          # Result and AppError
 ├── evals/                     # (M-7) eval sets and runner
 ├── docs/
-├── resources/                 # (M-8) icons, installer assets
+├── resources/                 # icon.png (tray, at runtime) and icon.ico (installer)
 ├── electron.vite.config.ts
 ├── tsconfig.base.json     # shared compiler options
 ├── tsconfig.node.json     # main + preload + shared

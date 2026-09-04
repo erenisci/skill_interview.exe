@@ -137,10 +137,19 @@ scoring, by design.
 README and license.
 **Depends on.** M-6.
 **Exit criteria.** A clean Windows VM installs the app, is guided through Ollama setup, and reaches a daily set.
-**Status.** Not started. **Model selection landed early** — pulled out of this milestone's scope and shipped
-directly, because it was blocking every model-dependent check M-4 and M-5 still need. Picking a model from the setup
-screen now swaps the live adapter without a restart (`SwappableLlmAdapter`, `applyLlmSettings` in `context.ts`);
-what remains here is language, counts, reminder, and the optional search key.
+**Status.** Built, awaiting the clean-VM install. The installer is real: `npm run package` produces a signed-by-
+nobody NSIS installer (~120 MB) with the app's own icon, `better-sqlite3` unpacked so the native module loads, and
+`deleteAppDataOnUninstall: false` so an uninstall never takes the user's database with it. CI packages it on a tag or
+a manual dispatch and uploads it as an artifact.
+
+Also landed: the settings screen (counts, reminder, language, model, Ollama URL, optional GitHub token), each field
+validated in the main process so a bad value is refused rather than silently breaking the scheduler; the tray icon
+that [TD-16](tech-debt.md) was open on; and a README that describes what the app does now rather than at M-2. Model
+selection had already been pulled forward.
+
+**Not done:** the exit criterion itself — nobody has installed this on a clean Windows VM and walked through Ollama
+setup to a daily set. That is the one check that cannot be run from inside the repository. E2E stays unwritten; a
+job that passes because it runs nothing would be worse than the gap.
 
 ### M-9 — Thirty-day trial
 

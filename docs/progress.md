@@ -112,6 +112,20 @@ Two metrics fail at baseline and are recorded rather than smoothed over: a sign-
 ([TD-17](project/tech-debt.md)), and Turkish requests come back in English ([TD-18](project/tech-debt.md)). Both were
 suspected in the docs for months and neither was a number until now.
 
+**M-8 is built.** `npm run package` produces a real Windows installer — verified by running it, not by trusting the
+config: ~120 MB, NSIS, the app's own icon, `better-sqlite3` unpacked so the native module loads at runtime, and an
+uninstall that leaves the user's database alone. CI builds it on a tag or on request rather than on every commit,
+because 120 MB per push buys nothing.
+
+The settings screen covers counts, reminder, language, model, Ollama URL and an optional GitHub token. Every field is
+validated in the main process, which is the point rather than a nicety: a `reminder_time` of "half six" would make
+the reminder return false forever with nothing on screen to explain it. Writing that validation immediately found a
+bug — `Number('')` is zero, so clearing the daily count would have silently meant "nothing today" instead of being
+refused.
+
+The icon closed [TD-16](project/tech-debt.md) as a side effect: the installer needed one, so the tray could finally
+have one too. It carries an Open/Quit menu and a tooltip that says whether today's set is unfinished.
+
 ## In Progress
 
 - **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests
@@ -165,9 +179,10 @@ suspected in the docs for months and neither was a number until now.
 
 1. Add a few related skills in the app and read both the day's questions (M-4) and the daily set (M-5) end to end —
    the check a probe or a stubbed test cannot make for either
-2. Act on the two failing baselines — grounding under useless retrieval (TD-17) and Turkish output (TD-18); both now
-   have a set to measure a fix against rather than a hunch
-3. M-8 — settings UI (language, counts, reminder, key), Windows installer, README and licence
+2. Install from `release/` on a clean Windows machine and walk to a daily set — M-8's exit criterion, and the only
+   check that cannot be run from inside the repository
+3. Score the judged eval metrics (`evals/results/`) — groundedness, distractor plausibility, ambiguity are generated
+   and waiting, and they are the ones that say something about quality
 
 ## Open Decisions
 

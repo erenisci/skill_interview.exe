@@ -193,19 +193,16 @@ four-point signal would produce is unmeasured.
 **Remediation.** Not urgent. If real use ever shows the daily set schedules items too aggressively or too loosely,
 this is the first place to look before touching the algorithm itself.
 
-### TD-16 — The reminder has no persistent tray icon
+### TD-16 — The reminder has no persistent tray icon — RESOLVED
 
-**What.** FR-44 asks for "a tray notification"; this ships a plain OS `Notification` (a toast) at the configured
-time, not a persistent Windows system-tray icon with a menu.
-**Why it exists.** A real icon asset does not exist in this repository yet — no design pass has produced one — and
-Electron's `Notification` satisfies the acceptance criterion (a notification appears when the set is unfinished)
-without inventing a placeholder icon file to unblock a `Tray` instance that would otherwise show a blank glyph.
-**Cost.** No quick way to reopen the app from the tray without the reminder having fired first, and no persistent
-"is something due" indicator between reminders.
-**Contained by.** Clicking the notification focuses (or creates) the main window, so the one interaction FR-44
-actually asks for works.
-**Remediation.** Add a real `Tray` with an icon once the app has one — the same icon M-8's Windows installer needs,
-so this is naturally M-8 work rather than a separate pass.
+**What.** FR-44 asks for a tray notification; the first implementation shipped a plain OS toast with no tray icon,
+because no icon asset existed and inventing a placeholder was worse than the gap.
+**Fix.** M-8 needed an icon for the installer anyway, so the repository now owns one — `resources/icon.png` and
+`icon.ico`, drawn programmatically in the app's own palette rather than taken from anywhere. The tray carries an
+Open/Quit menu, opens on click, and its tooltip says whether today's set is still unfinished, which is the part that
+earns it a place beyond reopening a window.
+**Left standing.** Closing the window still quits the app, so the tray only exists while the app is running. Making
+it a true background app is a product decision rather than a missing asset, and nobody has asked for it.
 
 ### TD-17 — A sign-in page can still produce a card — RESOLVED
 
