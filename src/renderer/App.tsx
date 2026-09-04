@@ -2,10 +2,11 @@ import type { SystemStatus } from '@shared/domain';
 import { CHANNELS } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
 import { DailyView } from './views/DailyView';
+import { FavoritesView } from './views/FavoritesView';
 import { SetupView } from './views/SetupView';
 import { SkillsView } from './views/SkillsView';
 
-type Tab = 'today' | 'skills';
+type Tab = 'today' | 'skills' | 'kept';
 
 type Load =
   | { state: 'loading' }
@@ -76,12 +77,15 @@ export function App(): React.JSX.Element {
         <button className={tab === 'skills' ? 'primary' : ''} onClick={() => setTab('skills')}>
           Skills
         </button>
+        <button className={tab === 'kept' ? 'primary' : ''} onClick={() => setTab('kept')}>
+          Kept
+        </button>
       </div>
-      {tab === 'today' ? (
-        <DailyView />
-      ) : (
+      {tab === 'today' && <DailyView />}
+      {tab === 'skills' && (
         <SkillsView status={load.status} onOpenSetup={() => setBypassSetup(false)} />
       )}
+      {tab === 'kept' && <FavoritesView />}
     </div>
   );
 }

@@ -18,12 +18,22 @@ export function DailyView(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [answered, setAnswered] = useState<Readonly<Record<number, number>>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  /** Keys are `kind:id`, so a card and a question with the same id cannot collide. */
+  const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
 
   const load = useCallback(async (cancelled?: () => boolean) => {
-    const result = await window.api.invoke(CHANNELS.dailyGet, undefined);
+    const [today, favorites] = await Promise.all([
+      window.api.invoke(CHANNELS.dailyGet, undefined),
+      window.api.invoke(CHANNELS.favoritesList, undefined),
+    ]);
     if (cancelled?.()) return;
-    if (result.ok) setSet(result.value);
-    else setError(result.error.message);
+    if (today.ok) setSet(today.value);
+    else setError(today.error.message);
+    if (favorites.ok) {
+      setKept(
+        new Set(favorites.value.map((f) => `${f.favorite.itemType}:${String(f.favorite.itemId)}`)),
+      );
+    }
   }, []);
 
   useEffect(() => {
@@ -50,6 +60,41 @@ export function DailyView(): React.JSX.Element {
       return;
     }
     await load();
+  }
+
+  async function toggleKept(entry: DailySetEntry): Promise<void> {
+    const itemId = entry.kind === 'card' ? entry.card.card.id : entry.question.id;
+    const result = await window.api.invoke(CHANNELS.favoritesToggle, {
+      itemType: entry.kind,
+      itemId,
+    });
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    // Reflect the new state without a round trip for the whole set.
+    setKept((current) => {
+      const next = new Set(current);
+      const key = `${entry.kind}:${String(itemId)}`;
+      if (result.value) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  /** A star, and what it means, in the one place both item kinds share. */
+  function keepButton(entry: DailySetEntry, itemId: number): React.JSX.Element {
+    const isKept = kept.has(`${entry.kind}:${String(itemId)}`);
+    return (
+      <button
+        title={isKept ? 'Remove from Kept' : 'Keep this'}
+        aria-label={isKept ? 'Remove from Kept' : 'Keep this'}
+        onClick={() => void toggleKept(entry)}
+        style={{ padding: '4px 10px' }}
+      >
+        {isKept ? '★' : '☆'}
+      </button>
+    );
   }
 
   if (!set && !error) return <p className="muted">Loading today's set…</p>;
@@ -103,22 +148,25 @@ export function DailyView(): React.JSX.Element {
                   </span>
                 ))}
               </p>
-              {item.completed ? (
-                <span className="badge ready">done</span>
-              ) : (
-                <div className="row">
-                  <button disabled={busy === key} onClick={() => void answer(item, 'again')}>
-                    Needed review
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={busy === key}
-                    onClick={() => void answer(item, 'good')}
-                  >
-                    Knew it
-                  </button>
-                </div>
-              )}
+              <div className="row">
+                {item.completed ? (
+                  <span className="badge ready">done</span>
+                ) : (
+                  <>
+                    <button disabled={busy === key} onClick={() => void answer(item, 'again')}>
+                      Needed review
+                    </button>
+                    <button
+                      className="primary"
+                      disabled={busy === key}
+                      onClick={() => void answer(item, 'good')}
+                    >
+                      Knew it
+                    </button>
+                  </>
+                )}
+                {keepButton(item, item.card.card.id)}
+              </div>
             </article>
           );
         }
@@ -156,9 +204,12 @@ export function DailyView(): React.JSX.Element {
               })}
             </ul>
             {revealed && (
-              <p className="card-body" style={{ marginTop: 12, marginBottom: 0 }}>
-                {question.explanation}
-              </p>
+              <>
+                <p className="card-body" style={{ marginTop: 12 }}>
+                  {question.explanation}
+                </p>
+                <div className="row">{keepButton(item, question.id)}</div>
+              </>
             )}
           </article>
         );
