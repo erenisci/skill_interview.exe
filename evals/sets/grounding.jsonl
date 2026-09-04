@@ -1,0 +1,7 @@
+# Cards written from frozen sources, for a person to score. Groundedness is not machine
+# checkable here: judging whether a sentence is supported by the source is the whole
+# question, and asking a model to grade its own family's output measures agreement rather
+# than truth.
+{"id":"nginx","skill":"nginx","sourceFile":"nginx.txt"}
+{"id":"redis","skill":"Redis","sourceFile":"redis.txt"}
+{"id":"postgresql","skill":"PostgreSQL","sourceFile":"postgresql.txt"}

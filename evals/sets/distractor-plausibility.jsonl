@@ -1,0 +1,5 @@
+# Neighbouring pairs with real, statable differences. The claims produced here are what a
+# question's wrong answers are made of, so this set is where the sibling-distractor design
+# either justifies itself or does not.
+{"id":"nginx-haproxy","skillA":"nginx","skillB":"HAProxy","sourceFileA":"nginx.txt","sourceFileB":"haproxy.txt"}
+{"id":"redis-postgresql","skillA":"Redis","skillB":"PostgreSQL","sourceFileA":"redis.txt","sourceFileB":"postgresql.txt"}

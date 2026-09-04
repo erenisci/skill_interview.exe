@@ -1,0 +1,4 @@
+# Retrieval that produced nothing usable. The job must fail visibly rather than write a
+# card from the model's own memory — the rule the whole product rests on.
+{"id":"login-wall","skill":"Redis","sourceFile":"empty-login-wall.txt","note":"A sign-in page. Extraction let it through; synthesis must not."}
+{"id":"cookie-banner","skill":"PostgreSQL","sourceFile":"empty-cookie-only.txt","note":"A consent dialog with no article behind it."}

@@ -1,0 +1,73 @@
+HAProxy is a free and open source software that provides a high availability load balancer and proxy (forward proxy, reverse proxy) for TCP and HTTP-based applications that spreads requests across multiple servers. It is written in C and has a reputation for being fast and efficient (in terms of processor and memory usage).
+HAProxy is used by a number of high-profile websites including GoDaddy, GitHub, Bitbucket, Stack Overflow, Reddit, Slack, Speedtest.net, Tumblr, Twitter and Tuenti and is used in the OpsWorks product from Amazon Web Services.
+
+
+== History ==
+HAProxy was written in 2000 by Willy Tarreau, a core contributor to the Linux kernel, who still maintains the project.
+In 2013, the company HAProxy Technologies, LLC was created. The company provides a commercial offering, HAProxy Enterprise and appliance-based application-delivery controllers named ALOHA.
+
+
+== Features ==
+HAProxy has the following features:
+
+Layer 4 (TCP) and Layer 7 (HTTP) load balancing
+Multi-factor stickiness
+URL rewriting
+Rate limiting
+SSL/TLS termination proxy
+Gzip compression
+Caching
+PROXY Protocol support
+Scriptable multi-layer Health checking
+Connection and HTTP message logging
+HTTP/2 support on both sides
+HTTP/3 support
+WebSocket (RFC6455 and RFC8441)
+UDP/TCP Syslog load-balancing and forwarding/transcribing (RFC3164 and RFC5424)
+Event-driven Multithreaded architecture
+Hitless reloads
+gRPC Support
+Lua and SPOE Support
+API Support
+Layer 4/7 Retries
+Simplified circuit breaking
+Advanced debugging and tracing facilities
+Distributed stick-tables for stats collection and DoS mitigation
+
+
+== HAProxy Community vs HAProxy Enterprise ==
+HAProxy Enterprise Edition is an enterprise-class version of HAProxy that includes enterprise suite of add-ons, expert support, and professional services. It has some features backported from the HAProxy development branch.
+
+
+== ALOHA ==
+HAProxy Technologies’ ALOHA is a plug-and-play load-balancing appliance that can be deployed in any environment. ALOHA provides a graphical interface and a templating system that can be used to deploy and configure the appliance.
+
+
+== Versions ==
+HAProxy has had the following version releases:
+
+
+== Performance ==
+Servers equipped with 6 to 8 cores generally achieve between 200,000 and 500,000 requests per second, and have no trouble saturating a 25 Gbit/s connection under Linux. 64-core ARM servers were shown to reach 2 million requests per second and 100 Gbit/s.
+
+
+== Similar software ==
+Nginx
+Gearman
+Pound
+Vinyl Cache
+Envoy by CNCF
+
+
+== See also ==
+
+LAMP, LYME, and LEAP
+
+
+== References ==
+
+
+== External links ==
+HAProxy Enterprise Website
+HAProxy Wiki on GitHub
+HAProxy issue tracker on GitHub

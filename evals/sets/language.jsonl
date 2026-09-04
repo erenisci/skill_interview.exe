@@ -1,0 +1,6 @@
+# The same source in both languages. Turkish is the risk: a model asked for Turkish will
+# happily render "reverse proxy" as "ters vekil sunucu" — correct Turkish, useless to
+# someone preparing for an interview held in the original terms.
+{"id":"nginx-en","skill":"nginx","sourceFile":"nginx.txt","language":"en","keepTerms":["nginx","HTTP"]}
+{"id":"nginx-tr","skill":"nginx","sourceFile":"nginx.txt","language":"tr","keepTerms":["nginx","HTTP"]}
+{"id":"redis-tr","skill":"Redis","sourceFile":"redis.txt","language":"tr","keepTerms":["Redis"]}

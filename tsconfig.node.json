@@ -5,7 +5,10 @@
     "vitest.config.ts",
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    // The eval harness never ships in the app bundle, but it imports the real pipeline —
+    // so a change there must break here loudly rather than at `npm run eval` time.
+    "evals/**/*.ts"
   ],
   "compilerOptions": {
     "composite": true,
