@@ -1,3 +1,5 @@
+import type { ItemType } from '@shared/domain';
+
 /**
  * Daily-set assembly — deterministic, pure, and deliberately dumb.
  *
@@ -10,8 +12,6 @@
  * (FR-40): a skill list heavy on cards must not crowd out the day's questions, or the
  * other way round.
  */
-
-export type ItemType = 'card' | 'question';
 
 export interface CandidateItem {
   readonly itemType: ItemType;

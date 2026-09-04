@@ -141,6 +141,24 @@ export interface QuestionFeedback {
  */
 export type AnswerRating = 'again' | 'good';
 
+/** The two things that can be reviewed, favourited, or scheduled. */
+export type ItemType = 'card' | 'question';
+
+/**
+ * Something the user chose to keep.
+ *
+ * Names its item polymorphically and holds no foreign key, so it outlives the skill it
+ * came from: deleting a skill cascades its cards and questions away, and a favourite is
+ * kept as a tombstone rather than vanishing with them.
+ */
+export interface Favorite {
+  readonly id: number;
+  readonly itemType: ItemType;
+  readonly itemId: number;
+  readonly note: string | null;
+  readonly createdAt: string;
+}
+
 export type JobKind = 'research' | 'compare' | 'generate-questions';
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed';
 

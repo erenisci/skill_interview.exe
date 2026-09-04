@@ -1,4 +1,4 @@
-import type { AnswerRating } from '@shared/domain';
+import type { AnswerRating, ItemType } from '@shared/domain';
 import type { DailySet, DailySetEntry } from '@shared/ipc';
 import { appError, err, ok, type Result } from '@shared/result';
 import type { CardsRepository } from '../db/repositories/cards';
@@ -6,7 +6,7 @@ import type { QuestionsRepository } from '../db/repositories/questions';
 import type { ReviewsRepository } from '../db/repositories/reviews';
 import type { SettingsRepository } from '../db/repositories/settings';
 import { endOfLocalDay, localDateString } from '../util/date';
-import { assembleDailySet, type DailySetPool, type ItemType } from './daily-set';
+import { assembleDailySet, type DailySetPool } from './daily-set';
 import { schedule } from './fsrs';
 
 /**

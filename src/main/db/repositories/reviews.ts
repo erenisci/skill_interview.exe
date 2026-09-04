@@ -1,4 +1,5 @@
-import type { AssembledItem, ItemType } from '../../scheduler/daily-set';
+import type { ItemType } from '@shared/domain';
+import type { AssembledItem } from '../../scheduler/daily-set';
 import type { PriorReview, ReviewRating, ScheduledReview } from '../../scheduler/fsrs';
 import type { Db } from '../index';
 
