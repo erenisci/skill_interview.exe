@@ -7,7 +7,7 @@ import {
 import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shared/ipc';
 import { appError, err, ok } from '@shared/result';
 import { ipcMain } from 'electron';
-import type { AppContext } from '../context';
+import { applyLlmSettings, type AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
 import { RelationsRepository } from '../db/repositories/relations';
 import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
@@ -173,8 +173,15 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
 
   handle(CHANNELS.settingsGet, ctx, (key) => ok(ctx.settings.get(key)));
 
-  handle(CHANNELS.settingsSet, ctx, ({ key, value }) => {
+  handle(CHANNELS.settingsSet, ctx, async ({ key, value }) => {
     ctx.settings.set(key, value);
+    // These two decide which adapter `buildLlmAdapter` produces; every other setting is
+    // read fresh by whatever uses it next; the model choice is baked into a live object,
+    // wired at startup, that nothing else knows how to rebuild but did anyway.
+    if (key === 'ollama_model' || key === 'ollama_url') {
+      await applyLlmSettings(ctx);
+      log.info('ipc', 'llm adapter reloaded', { key });
+    }
     return ok(undefined);
   });
 }
