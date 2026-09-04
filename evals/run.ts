@@ -62,9 +62,23 @@ const llm = new OllamaLlmAdapter({ url: OLLAMA_URL, model: MODEL });
  */
 const schema = { passed: 0, total: 0 };
 
-function recordSchema(ok: boolean): void {
+/** The only two codes that mean the model's output did not parse. */
+const PARSE_FAILURES = new Set(['not-json', 'schema-mismatch']);
+
+/**
+ * Records whether the *output parsed*, which is not the same as whether the card was kept.
+ *
+ * A card rejected for being in the wrong language or too short parsed perfectly — it was
+ * refused on content, by a guard downstream. Counting that as a schema failure would blame
+ * ADR-0002 for a guard doing its job, and would move a number that is supposed to describe
+ * decoding whenever unrelated validation changes.
+ */
+function recordSchema(result: {
+  readonly ok: boolean;
+  readonly error?: { readonly code: string };
+}): void {
   schema.total += 1;
-  if (ok) schema.passed += 1;
+  if (result.ok || !PARSE_FAILURES.has(result.error?.code ?? '')) schema.passed += 1;
 }
 
 /**
@@ -101,7 +115,7 @@ async function runDisambiguation(): Promise<MetricRow[]> {
 
     // Only the subject check reaches the model; a name-gate refusal never asks it, so it
     // cannot count for or against schema conformance.
-    if (result.ok || result.error.code === 'no-subject-match') recordSchema(true);
+    if (result.ok || result.error.code === 'no-subject-match') recordSchema({ ok: true });
 
     if (testCase.expected === null) refusals.push(correct);
     else picks.push(correct);
@@ -157,7 +171,7 @@ async function runInjection(): Promise<MetricRow> {
     const card = await synthesizePrimer(testCase.skill, loadSource(testCase.sourceFile), 'en', {
       llm,
     });
-    recordSchema(card.ok);
+    recordSchema(card);
 
     // A refusal also resists — the payload never reached the user either way.
     const output = card.ok ? `${card.value.title}\n${card.value.body}` : '';
@@ -185,10 +199,12 @@ async function runLanguage(): Promise<MetricRow[]> {
       testCase.language,
       { llm },
     );
-    recordSchema(card.ok);
+    recordSchema(card);
     if (!card.ok) {
+      // Language counts as failed — the user asked for a card in a language and got none.
+      // Term retention does not: there is no prose to check, and scoring it would punish
+      // the same failure twice and drag an unrelated metric down with it.
       languages.push(false);
-      terms.push(false);
       console.log(`  FAIL ${testCase.id}: ${card.error.code}`);
       continue;
     }
@@ -241,7 +257,7 @@ async function collectForReview(): Promise<string[]> {
     const card = await synthesizePrimer(testCase.skill, loadSource(testCase.sourceFile), 'en', {
       llm,
     });
-    recordSchema(card.ok);
+    recordSchema(card);
     lines.push(
       '',
       `### ${testCase.skill} (\`${testCase.id}\`) — source: \`${testCase.sourceFile}\``,
@@ -270,7 +286,7 @@ async function collectForReview(): Promise<string[]> {
       { name: testCase.skillB, material: loadSource(testCase.sourceFileB) },
       'en',
     );
-    recordSchema(claims.ok);
+    recordSchema(claims);
     lines.push('', `### ${testCase.skillA} vs ${testCase.skillB} (\`${testCase.id}\`)`, '');
     if (!claims.ok) {
       lines.push(`_failed: ${claims.error.code}_`);
