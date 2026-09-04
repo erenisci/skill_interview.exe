@@ -1,4 +1,5 @@
-import { Notification } from 'electron';
+import { app, Menu, Notification, Tray, nativeImage } from 'electron';
+import { join } from 'node:path';
 import type { AppContext } from '../context';
 import { localDateString } from '../util/date';
 import { log } from '../util/logger';
@@ -20,8 +21,39 @@ export interface ReminderDeps extends Pick<AppContext, 'settings' | 'reviews'> {
   readonly now?: () => Date;
 }
 
-/** Starts the poll; returns a function that stops it, for a clean shutdown. */
-export function startReminder(deps: ReminderDeps, onFire: () => void): () => void {
+/**
+ * A tray icon whose menu reopens the window, and whose tooltip says whether anything is
+ * still due. Kept alive by the returned stop function rather than a module-level variable:
+ * an unreferenced Tray is garbage-collected and vanishes from the tray
+ * ([TD-16](../../../docs/project/tech-debt.md)).
+ */
+function createTray(onOpen: () => void, onQuit: () => void): Tray {
+  // In development the icon sits in the repository; in a packaged build it is unpacked
+  // beside the app, which is what `resources` resolves to at runtime.
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(app.getAppPath(), 'resources', 'icon.png');
+
+  const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
+  tray.setToolTip('skill_interview.exe');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open', click: onOpen },
+      { type: 'separator' },
+      { label: 'Quit', click: onQuit },
+    ]),
+  );
+  // Clicking the icon itself is what most people try first; the menu is the fallback.
+  tray.on('click', onOpen);
+  return tray;
+}
+
+/** Starts the poll and the tray; returns a function that stops both, for a clean shutdown. */
+export function startReminder(
+  deps: ReminderDeps,
+  onFire: () => void,
+  onQuit: () => void,
+): () => void {
   const now = deps.now ?? (() => new Date());
   let lastFiredDate: string | null = null;
 
@@ -57,6 +89,25 @@ export function startReminder(deps: ReminderDeps, onFire: () => void): () => voi
     log.info('notify', 'reminder shown');
   };
 
-  const timer = setInterval(tick, CHECK_INTERVAL_MS);
-  return () => clearInterval(timer);
+  const tray = createTray(onFire, onQuit);
+
+  // The tooltip is the one always-visible signal that something is waiting, and it is the
+  // reason the tray icon earns its place beyond reopening the window.
+  const refreshTooltip = (): void => {
+    const unfinished = deps.reviews.hasUnfinished(localDateString(now()));
+    tray.setToolTip(
+      unfinished ? 'skill_interview.exe — today’s set is unfinished' : 'skill_interview.exe',
+    );
+  };
+  refreshTooltip();
+
+  const timer = setInterval(() => {
+    refreshTooltip();
+    tick();
+  }, CHECK_INTERVAL_MS);
+
+  return () => {
+    clearInterval(timer);
+    tray.destroy();
+  };
 }

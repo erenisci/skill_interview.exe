@@ -111,7 +111,7 @@ app.whenReady().then(() => {
   applyCsp(process.env['ELECTRON_RENDERER_URL']);
   registerIpc(context, app.getVersion());
   context.queue.start();
-  stopReminder = startReminder(context, focusMainWindow);
+  stopReminder = startReminder(context, focusMainWindow, () => app.quit());
   createWindow();
 
   app.on('activate', () => {
