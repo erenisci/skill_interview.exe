@@ -6,9 +6,11 @@ import {
 } from '@shared/domain';
 import { CHANNELS, type Channel, type IpcRequest, type IpcResponse } from '@shared/ipc';
 import { appError, err, ok } from '@shared/result';
-import { ipcMain } from 'electron';
+import { BrowserWindow, dialog, ipcMain } from 'electron';
+import { writeFile } from 'node:fs/promises';
 import { applyLlmSettings, type AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
+import { exportFavoritesMarkdown, hydrateFavorites } from '../export/favorites';
 import { RelationsRepository } from '../db/repositories/relations';
 import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
 import { checkLlmReadiness } from '../startup/readiness';
@@ -169,6 +171,60 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
       return err(appError('validation', 'bad-rating', `"${request.rating}" is not a rating`));
     }
     return recordAnswer(ctx, request.itemType, request.itemId, request.rating);
+  });
+
+  handle(CHANNELS.favoritesList, ctx, () => ok(hydrateFavorites(ctx)));
+
+  handle(CHANNELS.favoritesToggle, ctx, (request) => {
+    if (request.itemType !== 'card' && request.itemType !== 'question') {
+      return err(
+        appError('validation', 'bad-item-type', `"${request.itemType}" is not an item type`),
+      );
+    }
+
+    if (ctx.favorites.remove(request.itemType, request.itemId)) {
+      log.info('ipc', 'favourite removed', { itemType: request.itemType });
+      return ok(false);
+    }
+    ctx.favorites.add(request.itemType, request.itemId, new Date().toISOString());
+    log.info('ipc', 'favourite added', { itemType: request.itemType });
+    return ok(true);
+  });
+
+  handle(CHANNELS.favoritesNote, ctx, (request) => {
+    if (!ctx.favorites.setNote(request.itemType, request.itemId, request.note)) {
+      return err(
+        appError('validation', 'not-favourited', 'a note needs the item to be favourited first'),
+      );
+    }
+    // The note is the user's own writing, so it is never logged (docs/operations/logging.md).
+    return ok(undefined);
+  });
+
+  handle(CHANNELS.favoritesExport, ctx, async () => {
+    const markdown = exportFavoritesMarkdown(ctx);
+    if (!markdown.ok) return markdown;
+
+    const window = BrowserWindow.getFocusedWindow();
+    const dated = new Date().toISOString().slice(0, 10);
+    const chosen = await (window
+      ? dialog.showSaveDialog(window, {
+          defaultPath: `skill-interview-favourites-${dated}.md`,
+          filters: [{ name: 'Markdown', extensions: ['md'] }],
+        })
+      : dialog.showSaveDialog({
+          defaultPath: `skill-interview-favourites-${dated}.md`,
+          filters: [{ name: 'Markdown', extensions: ['md'] }],
+        }));
+
+    // Dismissing the dialog is a decision, not a failure — the renderer shows nothing.
+    if (chosen.canceled || !chosen.filePath) return ok({ path: null });
+
+    await writeFile(chosen.filePath, markdown.value, 'utf8');
+    // The path is chosen by the user and can contain their username, which the logging
+    // rules forbid — only that an export happened is recorded.
+    log.info('ipc', 'favourites exported');
+    return ok({ path: chosen.filePath });
   });
 
   handle(CHANNELS.settingsGet, ctx, (key) => ok(ctx.settings.get(key)));

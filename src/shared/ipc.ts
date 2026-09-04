@@ -8,8 +8,10 @@ import type {
   AnswerRating,
   Card,
   ContentLanguage,
+  Favorite,
   FeedbackReason,
   FeedbackTarget,
+  ItemType,
   Question,
   Skill,
   Source,
@@ -28,6 +30,10 @@ export const CHANNELS = {
   questionsFlag: 'questions:flag',
   dailyGet: 'daily:get',
   dailyAnswer: 'daily:answer',
+  favoritesList: 'favorites:list',
+  favoritesToggle: 'favorites:toggle',
+  favoritesNote: 'favorites:note',
+  favoritesExport: 'favorites:export',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 } as const;
@@ -98,9 +104,52 @@ export interface DailySet {
 }
 
 export interface AnswerRequest {
-  readonly itemType: 'card' | 'question';
+  readonly itemType: ItemType;
   readonly itemId: number;
   readonly rating: AnswerRating;
+}
+
+/** A favourite with the content it names, hydrated once for both the list and the export. */
+export interface FavoriteCard {
+  readonly kind: 'card';
+  readonly favorite: Favorite;
+  readonly skill: Skill;
+  readonly card: Card;
+  readonly sources: readonly Source[];
+}
+
+export interface FavoriteQuestion {
+  readonly kind: 'question';
+  readonly favorite: Favorite;
+  readonly skill: Skill;
+  readonly question: Question;
+}
+
+/**
+ * A favourite whose content is gone — its skill was deleted and the cascade took the card
+ * or question with it. Kept rather than dropped: the user chose to keep this, and quietly
+ * omitting it would be the app overriding that on their behalf
+ * (docs/product/feature-specs.md).
+ */
+export interface OrphanedFavorite {
+  readonly kind: 'orphaned';
+  readonly favorite: Favorite;
+}
+
+export type FavoriteEntry = FavoriteCard | FavoriteQuestion | OrphanedFavorite;
+
+export interface FavoriteRef {
+  readonly itemType: ItemType;
+  readonly itemId: number;
+}
+
+export interface FavoriteNoteRequest extends FavoriteRef {
+  readonly note: string;
+}
+
+/** Where the export landed, or `null` when the user dismissed the save dialog. */
+export interface ExportResult {
+  readonly path: string | null;
 }
 
 /** Request and response shape per channel. Both sides derive their types from this map. */
@@ -115,6 +164,11 @@ export interface IpcContract {
   [CHANNELS.questionsFlag]: { request: FlagQuestionRequest; response: Result<void> };
   [CHANNELS.dailyGet]: { request: void; response: Result<DailySet> };
   [CHANNELS.dailyAnswer]: { request: AnswerRequest; response: Result<void> };
+  [CHANNELS.favoritesList]: { request: void; response: Result<readonly FavoriteEntry[]> };
+  /** Responds with the state the item is now in: `true` means favourited. */
+  [CHANNELS.favoritesToggle]: { request: FavoriteRef; response: Result<boolean> };
+  [CHANNELS.favoritesNote]: { request: FavoriteNoteRequest; response: Result<void> };
+  [CHANNELS.favoritesExport]: { request: void; response: Result<ExportResult> };
   [CHANNELS.settingsGet]: { request: string; response: Result<string | null> };
   [CHANNELS.settingsSet]: { request: SettingsSetRequest; response: Result<void> };
 }
