@@ -3,21 +3,21 @@ name: CI
 # Windows only — this is a Windows-only product, so building anywhere else proves nothing
 # (docs/operations/ci-cd.md).
 #
-# This wires the part of the pipeline that exists today: install, type check, lint, test,
-# and a compile-only build. Two stages the target design describes are deliberately not
-# here yet, because the thing they would test does not exist:
+# Two jobs. `build` gates every push: install, type check, lint, test, compile. `package`
+# produces the actual installer, and runs only on a tag or on request — it downloads
+# Electron, rebuilds a native module and emits ~120 MB, which is not worth doing on every
+# commit to a branch.
 #
-#   - E2E (Playwright) — no e2e suite has been written.
-#   - Packaging the Windows installer, and attaching it to a tagged release — electron-builder
-#     has no build config (icon, appId, signing) yet.
+# Still missing, and deliberately not stubbed: the E2E stage. No Playwright suite has been
+# written, and an empty job that always passes would be worse than the honest gap.
 #
-# Both are M-8 scope ("Windows installer", "CI build") per docs/project/roadmap.md, and
-# belong here as soon as they exist — not stubbed out now to look more finished than the
-# product is.
+# The installer is unsigned. First run shows a SmartScreen warning — the true state of a
+# free, unsigned app rather than something to paper over (docs/operations/ci-cd.md).
 
 on:
   push:
     branches: ['**']
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -51,3 +51,26 @@ jobs:
       # Compiles the app (electron-vite build) without packaging an installer — proves the
       # code builds; producing a distributable is M-8's job.
       - run: npm run build
+
+  package:
+    # Only when a release is actually being cut, or when someone asks for a build to try.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skill-interview-installer
+          path: release/*.exe
+          if-no-files-found: error

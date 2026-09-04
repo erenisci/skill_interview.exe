@@ -1,0 +1,46 @@
+# Windows only, by design: this is a Windows desktop app and building elsewhere would prove
+# nothing (docs/operations/ci-cd.md).
+appId: dev.erenisci.skill-interview
+productName: skill_interview.exe
+copyright: Copyright © 2026 Eren İşci
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - out/**
+  - package.json
+
+# `buildResources` is consumed at build time (the installer's own icon). The tray needs the
+# icon at *run* time, so it is copied into the packaged app's resources directory, which is
+# what `process.resourcesPath` points at.
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+
+# better-sqlite3 is a native module: it must stay unpacked, because Node cannot load a
+# .node binary from inside an asar archive.
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # The database lives in %APPDATA% and is the user's own work; an uninstall must not take
+  # it with them (docs/architecture/database-design.md — deleting it is a clean reset, and
+  # that has to be their decision).
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# No code-signing certificate. First run will show a SmartScreen warning, which is the
+# honest state of a free, unsigned app rather than something to work around
+# (docs/operations/ci-cd.md).
