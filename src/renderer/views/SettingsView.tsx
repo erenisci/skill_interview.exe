@@ -18,11 +18,12 @@ interface Props {
  */
 
 const KEYS = [
-  'content_language',
   'daily_cards',
   'daily_questions',
   'reminder_enabled',
   'reminder_time',
+  'close_to_tray',
+  'launch_at_startup',
   'ollama_url',
   'ollama_model',
   'github_token',
@@ -164,23 +165,31 @@ export function SettingsView({ status, onChanged }: Props): React.JSX.Element {
             />
           </div>,
         )}
-      </div>
-
-      <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Content</h3>
 
         {field(
-          'content_language',
-          'Language',
-          'Applies to cards and questions generated from now on. Existing ones keep the language they were written in.',
-          <select
-            value={values.content_language ?? 'en'}
-            onChange={(e) => void save('content_language', e.target.value)}
-            aria-label="Content language"
-          >
-            <option value="en">English</option>
-            <option value="tr">Türkçe</option>
-          </select>,
+          'launch_at_startup',
+          'Start with Windows',
+          'Opens straight to the notification area, without a window. Takes effect in the installed app, not in a development build.',
+          <input
+            type="checkbox"
+            checked={values.launch_at_startup === 'true'}
+            onChange={(e) => void save('launch_at_startup', String(e.target.checked))}
+            aria-label="Start with Windows"
+          />,
+        )}
+
+        {field(
+          'close_to_tray',
+          'Keep running when the window is closed',
+          // Stated plainly because the alternative is a user believing they quit the app
+          // and then wondering why the reminder never arrives.
+          'Closing the window hides it in the notification area instead of quitting. A reminder needs the app running to arrive; quit for real from the tray icon’s menu.',
+          <input
+            type="checkbox"
+            checked={values.close_to_tray === 'true'}
+            onChange={(e) => void save('close_to_tray', String(e.target.checked))}
+            aria-label="Keep running when the window is closed"
+          />,
         )}
       </div>
 

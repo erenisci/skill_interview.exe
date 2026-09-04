@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 interface Props {
   readonly skillId: number;
+  /** How many *other* researched skills exist — what actually gates asking about this one. */
+  readonly otherSkillCount: number;
 }
 
 /**
@@ -35,7 +37,10 @@ const TARGET_OF: Readonly<Record<FeedbackReason, FeedbackTarget>> = Object.fromE
   ...EXPLANATION_REASONS.map((reason) => [reason, 'explanation' as FeedbackTarget]),
 ]) as Record<FeedbackReason, FeedbackTarget>;
 
-export function QuestionList({ skillId }: Props): React.JSX.Element {
+/** A question is one correct claim plus three drawn from three other skills. */
+const MIN_OTHER_SKILLS = 3;
+
+export function QuestionList({ skillId, otherSkillCount }: Props): React.JSX.Element {
   const [questions, setQuestions] = useState<readonly Question[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [answered, setAnswered] = useState<Readonly<Record<number, number>>>({});
@@ -81,10 +86,25 @@ export function QuestionList({ skillId }: Props): React.JSX.Element {
   if (!loaded) return <p className="muted">Loading questions…</p>;
 
   if (questions.length === 0) {
+    // Two earlier versions of this were both wrong. The first promised questions "once a
+    // neighbouring skill has been researched", which is not the rule. The second named the
+    // rule but told the user to "add 3 more skills in the same area" — advice nobody can
+    // act on, because a CV is not a thing you can grow on request. Wrong answers now come
+    // from any researched skill, so what it asks for is something the user can actually do.
+    const needed = MIN_OTHER_SKILLS - otherSkillCount;
     return (
       <p className="muted">
-        No questions yet. They are written once a neighbouring skill has been researched — the wrong
-        answers come from your other skills.
+        No questions yet.{' '}
+        {needed > 0 ? (
+          <>
+            Every wrong answer is a true fact about a <em>different</em> skill of yours, so this one
+            needs {String(MIN_OTHER_SKILLS)} other researched skills to draw from — there{' '}
+            {otherSkillCount === 1 ? 'is' : 'are'} {String(otherSkillCount)}. Add {String(needed)}{' '}
+            more, in any area; related ones make sharper questions.
+          </>
+        ) : (
+          <>They are being written in the background. This can take a minute or two.</>
+        )}
       </p>
     );
   }

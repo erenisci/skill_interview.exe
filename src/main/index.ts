@@ -12,6 +12,14 @@ let stopReminder: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 /**
+ * Set the moment a real quit begins, so the close handler stops intercepting.
+ *
+ * Without it, hiding on close would make the app unquittable: `app.quit()` closes every
+ * window, the handler cancels each close, and the quit never completes.
+ */
+let quitting = false;
+
+/**
  * Set as a header rather than a meta tag so dev and release can differ: Vite's dev server
  * needs inline scripts and a websocket for HMR, and the packaged app must allow neither.
  * Remote script is blocked in both.
@@ -38,7 +46,8 @@ function createWindow(): BrowserWindow {
     minWidth: 880,
     minHeight: 600,
     show: false,
-    backgroundColor: '#12131a',
+    // Matches --bg in the renderer stylesheet, so the first paint is not a white flash.
+    backgroundColor: '#0d1117',
     title: 'skill_interview.exe',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -63,11 +72,37 @@ function createWindow(): BrowserWindow {
   if (devServer) void window.loadURL(devServer);
   else void window.loadFile(join(__dirname, '../renderer/index.html'));
 
+  // Closing hides rather than quits, unless the user turned that off or a real quit is
+  // already under way. The window is kept — reopening from the tray is then instant, and
+  // it is also what makes the reminder work at all: a notification at 18:00 needs a
+  // process at 18:00 (docs/operations/configuration.md).
+  window.on('close', (event) => {
+    if (quitting) return;
+    if (context?.settings.get('close_to_tray') !== 'true') return;
+    event.preventDefault();
+    window.hide();
+  });
+
   mainWindow = window;
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null;
   });
   return window;
+}
+
+/**
+ * Registers or clears the Windows login item to match the setting.
+ *
+ * Packaged builds only. In development the executable is Electron's own binary inside
+ * `node_modules`, and adding *that* to a machine's startup would be a genuinely unpleasant
+ * thing to leave behind on a contributor's computer.
+ *
+ * `--hidden` is passed so a login launch goes straight to the tray. An app that appears at
+ * boot because it will remind you at six o'clock has misunderstood its own job.
+ */
+function applyLaunchAtStartup(enabled: boolean): void {
+  if (!app.isPackaged) return;
+  app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
 }
 
 /** Brings the window forward — a reminder notification does nothing useful otherwise. */
@@ -109,10 +144,17 @@ app.whenReady().then(() => {
     dataDirSource,
   });
   applyCsp(process.env['ELECTRON_RENDERER_URL']);
-  registerIpc(context, app.getVersion());
+  registerIpc(context, app.getVersion(), { setLaunchAtStartup: applyLaunchAtStartup });
+  applyLaunchAtStartup(context.settings.get('launch_at_startup') === 'true');
   context.queue.start();
-  stopReminder = startReminder(context, focusMainWindow, () => app.quit());
-  createWindow();
+  stopReminder = startReminder(context, focusMainWindow, () => {
+    // Quit from the tray is the one path that must always end the process, so it says so
+    // before asking for it.
+    quitting = true;
+    app.quit();
+  });
+  // Started by the login item: the tray icon is the whole point, so nothing is shown.
+  if (!process.argv.includes('--hidden')) createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -120,7 +162,14 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // Only reached when the window genuinely closed, which close-to-tray prevents.
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Covers every other way a quit can start — the tray's Quit, a Windows shutdown, Cmd+Q —
+// so none of them is cancelled by the close handler above.
+app.on('before-quit', () => {
+  quitting = true;
 });
 
 app.on('will-quit', () => {

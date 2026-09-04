@@ -1,4 +1,4 @@
-import type { ContentLanguage, Skill, SystemStatus } from '@shared/domain';
+import type { Skill, SystemStatus } from '@shared/domain';
 import { CHANNELS, type CardWithSources, type RelatedSkill } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
 import { QuestionList } from './QuestionList';
@@ -10,24 +10,49 @@ interface Props {
 
 /** Research runs in the background, so the list has to notice when it finishes. */
 const POLL_INTERVAL_MS = 2_000;
+/** Matches the `.expando` transition in global.css. */
+const COLLAPSE_MS = 240;
 const isWorking = (skills: readonly Skill[]): boolean =>
   skills.some((s) => s.status === 'pending' || s.status === 'researching');
 
 export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   const [skills, setSkills] = useState<readonly Skill[]>([]);
   const [name, setName] = useState('');
-  const [language, setLanguage] = useState<ContentLanguage>('en');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
+  // Kept a moment past `openId` so the collapse has something to collapse: unmounting the
+  // content on click would make the close instant while the open animates.
+  const [renderId, setRenderId] = useState<number | null>(null);
   const [cards, setCards] = useState<readonly CardWithSources[]>([]);
   const [related, setRelated] = useState<readonly RelatedSkill[]>([]);
+  const [failures, setFailures] = useState<Readonly<Record<number, string>>>({});
 
   const load = useCallback(async (cancelled?: () => boolean) => {
     const result = await window.api.invoke(CHANNELS.skillsList, undefined);
     if (cancelled?.()) return;
-    if (result.ok) setSkills(result.value);
-    else setError(result.error.message);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setSkills(result.value);
+
+    // A red badge and nothing else is indistinguishable from a broken app, and the reason
+    // is usually the user's to act on — a name too generic to resolve, or Ollama gone.
+    // Only failed skills are asked about, so this is empty in the ordinary case.
+    const failed = result.value.filter((skill) => skill.status === 'failed');
+    const reasons = await Promise.all(
+      failed.map(
+        async (skill) =>
+          [skill.id, await window.api.invoke(CHANNELS.skillsFailure, skill.id)] as const,
+      ),
+    );
+    if (cancelled?.()) return;
+    const next: Record<number, string> = {};
+    for (const [id, reason] of reasons) {
+      if (reason.ok && reason.value !== null) next[id] = reason.value;
+    }
+    setFailures(next);
   }, []);
 
   useEffect(() => {
@@ -51,7 +76,7 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
     if (name.trim().length === 0) return;
     setBusy(true);
     setError(null);
-    const result = await window.api.invoke(CHANNELS.skillsAdd, { name, contentLang: language });
+    const result = await window.api.invoke(CHANNELS.skillsAdd, { name, contentLang: 'en' });
     setBusy(false);
     if (!result.ok) {
       setError(result.error.message);
@@ -64,16 +89,42 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
   async function remove(id: number): Promise<void> {
     const result = await window.api.invoke(CHANNELS.skillsRemove, id);
     if (!result.ok) setError(result.error.message);
-    if (openId === id) setOpenId(null);
+    if (openId === id) {
+      setOpenId(null);
+      setRenderId(null);
+    }
+    await load();
+  }
+
+  /**
+   * A blank field means "no cap of its own"; 0 means "not today", which parks a skill
+   * without deleting it and losing its review history.
+   */
+  async function saveLimit(skill: Skill, field: 'cards' | 'questions', raw: string): Promise<void> {
+    const trimmed = raw.trim();
+    const value = trimmed.length === 0 ? null : Number(trimmed);
+    if (value !== null && (!Number.isInteger(value) || value < 0)) {
+      setError('A per-skill limit must be a whole number, or blank for no limit.');
+      return;
+    }
+    setError(null);
+    const result = await window.api.invoke(CHANNELS.skillsLimits, {
+      skillId: skill.id,
+      cards: field === 'cards' ? value : skill.dailyCards,
+      questions: field === 'questions' ? value : skill.dailyQuestions,
+    });
+    if (!result.ok) setError(result.error.message);
     await load();
   }
 
   async function toggle(skill: Skill): Promise<void> {
     if (openId === skill.id) {
       setOpenId(null);
+      window.setTimeout(() => setRenderId(null), COLLAPSE_MS);
       return;
     }
     setOpenId(skill.id);
+    setRenderId(skill.id);
     setCards([]);
     setRelated([]);
     const [cardResult, relatedResult] = await Promise.all([
@@ -103,14 +154,6 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
             onChange={(e) => setName(e.target.value)}
             aria-label="Skill name"
           />
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as ContentLanguage)}
-            aria-label="Content language"
-          >
-            <option value="en">English</option>
-            <option value="tr">Türkçe</option>
-          </select>
           <button className="primary" type="submit" disabled={busy || name.trim().length === 0}>
             Add
           </button>
@@ -126,12 +169,7 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
             {skills.map((skill) => (
               <li key={skill.id} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                  <span>
-                    {skill.name}{' '}
-                    <span className="muted" style={{ fontSize: 12 }}>
-                      {skill.contentLang}
-                    </span>
-                  </span>
+                  <span>{skill.name}</span>
                   <span className="row">
                     <span className={`badge ${skill.status}`}>{skill.status}</span>
                     {skill.status === 'ready' && (
@@ -143,51 +181,95 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
                   </span>
                 </div>
 
-                {openId === skill.id && (
+                {skill.status === 'failed' && failures[skill.id] && (
+                  <p
+                    className="error"
+                    style={{ fontSize: 12, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}
+                  >
+                    {failures[skill.id]}
+                  </p>
+                )}
+
+                <div className={`expando${openId === skill.id ? ' open' : ''}`}>
                   <div className="card">
-                    {related.length > 0 && (
-                      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                        Related —{' '}
-                        {related.map((r, i) => (
-                          <span key={r.skill.id}>
-                            {i > 0 && ' · '}
-                            {r.skill.name}
-                            <span style={{ opacity: 0.6 }}> {r.strength.toFixed(2)}</span>
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                    {cards.length === 0 ? (
-                      <p className="muted">Loading…</p>
-                    ) : (
-                      cards.map(({ card, sources }) => (
-                        <article key={card.id}>
-                          <h3>{card.title}</h3>
-                          {/* Rendered as text: this derives from an arbitrary web page. */}
-                          <p className="card-body">{card.bodyMd}</p>
-                          <p className="muted" style={{ fontSize: 12 }}>
-                            Sources —{' '}
-                            {sources.map((source, i) => (
-                              <span key={source.id}>
+                    {renderId !== skill.id ? null : (
+                      <>
+                        <div className="row limits">
+                          <span className="muted">Per day from this skill —</span>
+                          <label className="muted">
+                            cards
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder="all"
+                              defaultValue={skill.dailyCards ?? ''}
+                              onBlur={(e) => void saveLimit(skill, 'cards', e.target.value)}
+                              aria-label={`Cards per day from ${skill.name}`}
+                            />
+                          </label>
+                          <label className="muted">
+                            questions
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder="all"
+                              defaultValue={skill.dailyQuestions ?? ''}
+                              onBlur={(e) => void saveLimit(skill, 'questions', e.target.value)}
+                              aria-label={`Questions per day from ${skill.name}`}
+                            />
+                          </label>
+                          <span className="muted hint">blank = no limit · 0 = pause</span>
+                        </div>
+                        {related.length > 0 && (
+                          <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                            Related —{' '}
+                            {related.map((r, i) => (
+                              <span key={r.skill.id}>
                                 {i > 0 && ' · '}
-                                <a href={source.url} target="_blank" rel="noreferrer">
-                                  {source.title}
-                                </a>
-                                {source.license ? ` (${source.license})` : ''}
+                                {r.skill.name}
+                                <span style={{ opacity: 0.6 }}> {r.strength.toFixed(2)}</span>
                               </span>
                             ))}
                           </p>
-                          <p className="muted" style={{ fontSize: 12 }}>
-                            {card.model} · {card.promptVersion}
-                          </p>
-                        </article>
-                      ))
-                    )}
+                        )}
+                        {cards.length === 0 ? (
+                          <p className="muted">Loading…</p>
+                        ) : (
+                          cards.map(({ card, sources }) => (
+                            <article key={card.id}>
+                              <h3>{card.title}</h3>
+                              {/* Rendered as text: this derives from an arbitrary web page. */}
+                              <p className="card-body">{card.bodyMd}</p>
+                              <p className="muted" style={{ fontSize: 12 }}>
+                                Sources —{' '}
+                                {sources.map((source, i) => (
+                                  <span key={source.id}>
+                                    {i > 0 && ' · '}
+                                    <a href={source.url} target="_blank" rel="noreferrer">
+                                      {source.title}
+                                    </a>
+                                    {source.license ? ` (${source.license})` : ''}
+                                  </span>
+                                ))}
+                              </p>
+                              <p className="muted" style={{ fontSize: 12 }}>
+                                {card.model} · {card.promptVersion}
+                              </p>
+                            </article>
+                          ))
+                        )}
 
-                    <h3>Questions</h3>
-                    <QuestionList skillId={skill.id} />
+                        <h3>Questions</h3>
+                        <QuestionList
+                          skillId={skill.id}
+                          otherSkillCount={
+                            skills.filter((s) => s.id !== skill.id && s.status === 'ready').length
+                          }
+                        />
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
               </li>
             ))}
           </ul>
