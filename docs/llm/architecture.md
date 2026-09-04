@@ -24,18 +24,19 @@ is loaded for a job and released when the queue drains ([../architecture/adr/000
 
 ## Model(s)
 
-| Aspect      | Choice                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------ |
-| Runtime     | Ollama, local HTTP at `localhost:11434`                                                                      |
-| Recommended | `qwen3:4b` (4B instruct, Q4, ~2.5 GB) — a working hypothesis, see below                                      |
-| Selection   | Read from Ollama's installed list; the user picks                                                            |
-| Structured  | JSON Schema sent as `format` on every request ([ADR-0002](../architecture/adr/0002-constrained-decoding.md)) |
-| Thinking    | **`think: false` on every request** — see below; the largest latency factor in the pipeline                  |
-| Context     | `num_ctx` set explicitly by the adapter, never inherited from the runtime                                    |
-| Offload     | `num_gpu: 99` — forces every layer onto the GPU; the automatic split left 1.6 GB of VRAM unused              |
-| Residency   | `keep_alive` of a few minutes during a job run; `release()` sends `keep_alive: 0` when the queue drains      |
-| Concurrency | One job at a time — the model is both the bottleneck and the memory cost                                     |
-| Access      | Via `LlmAdapter`; only `src/main/llm/ollama.ts` knows Ollama exists                                          |
+| Aspect      | Choice                                                                                                                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime     | Ollama, local HTTP at `localhost:11434`                                                                                                                                                                                                                |
+| Recommended | `qwen3:4b` (4B instruct, Q4, ~2.5 GB) — a working hypothesis, see below                                                                                                                                                                                |
+| Selection   | Read from Ollama's installed list; the user picks                                                                                                                                                                                                      |
+| Structured  | JSON Schema sent as `format` on every request ([ADR-0002](../architecture/adr/0002-constrained-decoding.md))                                                                                                                                           |
+| Thinking    | **`think: false` on every request** — see below; the largest latency factor in the pipeline                                                                                                                                                            |
+| Context     | `num_ctx` set explicitly by the adapter, never inherited from the runtime                                                                                                                                                                              |
+| Offload     | `num_gpu: 99` — forces every layer onto the GPU; the automatic split left 1.6 GB of VRAM unused                                                                                                                                                        |
+| Residency   | `keep_alive` of a few minutes during a job run; `release()` sends `keep_alive: 0` when the queue drains                                                                                                                                                |
+| Concurrency | One job at a time — the model is both the bottleneck and the memory cost                                                                                                                                                                               |
+| Access      | Via `LlmAdapter`; only `src/main/llm/ollama.ts` knows Ollama exists                                                                                                                                                                                    |
+| Identity    | `AppContext.llm` is a `SwappableLlmAdapter` — a stable wrapper every handler captures once at startup, so selecting a model from the setup screen swaps the live adapter in place rather than requiring a restart (`applyLlmSettings` in `context.ts`) |
 
 ### Thinking is off, and this was the biggest surprise
 

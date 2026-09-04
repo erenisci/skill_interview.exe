@@ -120,6 +120,8 @@ defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
 | 2026-09-03 | M-5: the transactional answer path — schedule and mark-done together, or neither                                           |
 | 2026-09-03 | M-5: the reminder — pure timing logic plus the one `Notification` call, once-per-day gated                                 |
 | 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                     |
+| 2026-09-03 | Found while trying to test M-4/M-5 live: no way existed to select an Ollama model without restarting the app               |
+| 2026-09-03 | `SwappableLlmAdapter` — selecting a model in setup swaps the live adapter in place; pulled forward out of M-8's scope      |
 
 ## Blocked
 

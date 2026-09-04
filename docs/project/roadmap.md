@@ -115,11 +115,14 @@ a run across at least two models to settle the model-dependent prompt question.
 ### M-8 — Shippable
 
 **Goal.** Someone other than the author can install and use it.
-**Scope.** Settings UI (language, counts, reminder, model, optional key); setup screen; Windows installer;
-CI build; README and license.
+**Scope.** Settings UI (language, counts, reminder, optional key); setup screen; Windows installer; CI build;
+README and license.
 **Depends on.** M-6.
 **Exit criteria.** A clean Windows VM installs the app, is guided through Ollama setup, and reaches a daily set.
-**Status.** Not started.
+**Status.** Not started. **Model selection landed early** — pulled out of this milestone's scope and shipped
+directly, because it was blocking every model-dependent check M-4 and M-5 still need. Picking a model from the setup
+screen now swaps the live adapter without a restart (`SwappableLlmAdapter`, `applyLlmSettings` in `context.ts`);
+what remains here is language, counts, reminder, and the optional search key.
 
 ### M-9 — Thirty-day trial
 
