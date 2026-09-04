@@ -4,13 +4,13 @@ import type { Database as Db } from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate } from '../db/migrate';
-import type { JobHandler } from '../queue/queue';
 import { CardsRepository } from '../db/repositories/cards';
 import { JobsRepository } from '../db/repositories/jobs';
 import { QuestionsRepository } from '../db/repositories/questions';
 import { RelationsRepository } from '../db/repositories/relations';
 import { SkillsRepository } from '../db/repositories/skills';
 import type { GenerationOutput, GenerationRequest, LlmAdapter } from '../llm/adapter';
+import type { JobHandler } from '../queue/queue';
 import { createQuestionsHandler, DISTRACTORS_NEEDED } from './questions';
 
 let db: Db;
@@ -859,7 +859,21 @@ describe('question generation — a CV is not a thing you can grow on request', 
     addPrimer(redis);
     skills.setStatus(redis.id, 'ready');
 
-    const result = await handlerWith(llm())(jobFor(js.id));
+    // Distinct per pair: the shared stub returns one text for every pair, so three skills
+    // would store the same sentence and the validator would reject the question for
+    // duplicate options — a fixture artefact rather than the behaviour under test.
+    let pair = 0;
+    const varied = llm({
+      'contrastive-claims': () => {
+        pair += 1;
+        return {
+          aClaims: [`compiles to a portable intermediate form, variant ${String(pair)}`],
+          bClaims: [`checks types before the program is run, variant ${String(pair)}`],
+        };
+      },
+    });
+
+    const result = await handlerWith(varied)(jobFor(js.id));
 
     expect(result.ok).toBe(true);
     expect(questions.listBySkill(js.id).length).toBeGreaterThan(0);
@@ -974,5 +988,156 @@ describe('question generation — one fact, stored once', () => {
     await handlerWith(distinct)(jobFor(python.id));
 
     expect(questions.claimTextsFor(python.id)).toHaveLength(2);
+  });
+});
+
+describe('question generation — the pool is every claim written against the skill', () => {
+  it('borrows a claim from a skill that is not a graph neighbour', async () => {
+    // Measured on a live database: Python had three claims written against it and could
+    // reach only two, because the third belonged to a skill that had failed classification
+    // and so was nobody's neighbour. One short of a question, permanently.
+    //
+    // Being false of this skill is a property of the claim — established when it was
+    // generated with both technologies in view — not of the author still being a neighbour.
+    const python = addSkill('Python');
+    addPrimer(python);
+    // Two related skills, so the related claims run one short and the pool has to reach
+    // past the graph to fill the third slot.
+    const near = ['Java', 'Ruby'].map((name) => {
+      const s = addSkill(name);
+      addPrimer(s);
+      return s;
+    });
+    relations.replaceFor(
+      python.id,
+      near.map((n) => ({
+        skillAId: python.id,
+        skillBId: n.id,
+        kind: 'same-category' as const,
+        strength: 0.5,
+      })),
+    );
+
+    // An unclassified skill: no relation to anything, but it has written a claim about
+    // Python all the same.
+    const orphan = addSkill('Celery');
+    addPrimer(orphan);
+    questions.replaceClaimsForPair(orphan.id, python.id, [
+      {
+        skillId: orphan.id,
+        contrastSkillId: python.id,
+        cardId: cards.listBySkill(orphan.id)[0]?.id ?? 0,
+        text: 'schedules work onto a pool of separate worker processes',
+        model: 'stub',
+        promptVersion: 'contrastive-claims.v2',
+        createdAt: NOW,
+      },
+    ]);
+
+    // Distinct claims per pair, or three neighbours store the same sentence and the
+    // validator rejects the question for duplicate options — a fixture artefact, not the
+    // behaviour under test.
+    let pair = 0;
+    const varied = llm({
+      'contrastive-claims': () => {
+        pair += 1;
+        return {
+          aClaims: [`resolves attribute lookups at run time, variant ${String(pair)}`],
+          bClaims: [`compiles to a bytecode verified before it runs, variant ${String(pair)}`],
+        };
+      },
+    });
+
+    await handlerWith(varied)(jobFor(python.id));
+
+    const borrowed = new Set(
+      questions
+        .listBySkill(python.id)
+        .flatMap((q) => q.options.filter((o) => !o.isCorrect).map((o) => o.sourceSkillId)),
+    );
+    expect(questions.listBySkill(python.id).length).toBeGreaterThan(0);
+    expect(borrowed.has(orphan.id)).toBe(true);
+  });
+
+  it('still refuses when no claim anywhere is false of this skill', () => {
+    // The pool widened; the rule that a wrong answer must be established as wrong did not.
+    const lonely = addSkill('Redis');
+    addPrimer(lonely);
+    expect(questions.allClaimsAgainst(lonely.id)).toHaveLength(0);
+  });
+});
+
+describe('question generation — a distractor that teaches something', () => {
+  it('drops a claim that is only trivia, however well it separates', async () => {
+    const nginx = addSkill('nginx');
+    addPrimer(nginx);
+    const traefik = addSkill('Traefik');
+    addPrimer(traefik);
+    relations.replaceFor(nginx.id, [
+      { skillAId: nginx.id, skillBId: traefik.id, kind: 'same-category', strength: 0.9 },
+    ]);
+
+    const trivia = llm({
+      'contrastive-claims': () => ({
+        aClaims: ['was first released in 2004 under a BSD license'],
+        bClaims: ['reached version 2.0 with a rewritten routing engine'],
+      }),
+    });
+
+    await handlerWith(trivia)(jobFor(nginx.id));
+
+    expect(questions.claimTextsFor(nginx.id)).toHaveLength(0);
+    expect(questions.claimTextsFor(traefik.id)).toHaveLength(0);
+  });
+
+  it('prefers a related skill over an unrelated one when both could supply the answer', async () => {
+    // The pool is wide so that an isolated skill is still askable. That must not turn into
+    // asking someone to tell a query language from a cloud platform, which nobody confuses.
+    const python = addSkill('Python');
+    addPrimer(python);
+    const related = addSkill('Ruby');
+    addPrimer(related);
+    relations.replaceFor(python.id, [
+      { skillAId: python.id, skillBId: related.id, kind: 'same-category', strength: 0.8 },
+    ]);
+
+    const unrelated = addSkill('AWS');
+    addPrimer(unrelated);
+    for (let i = 0; i < 4; i += 1) {
+      questions.replaceClaimsForPair(unrelated.id, python.id, [
+        {
+          skillId: unrelated.id,
+          contrastSkillId: python.id,
+          cardId: cards.listBySkill(unrelated.id)[0]?.id ?? 0,
+          text: `bills for capacity reserved rather than used, variant ${String(i)}`,
+          model: 'stub',
+          promptVersion: 'contrastive-claims.v2',
+          createdAt: NOW,
+        },
+      ]);
+    }
+
+    let pair = 0;
+    const varied = llm({
+      'contrastive-claims': () => {
+        pair += 1;
+        return {
+          aClaims: [`resolves attribute lookups at run time, variant ${String(pair)}`],
+          bClaims: [
+            `evaluates blocks with an explicit receiver, variant ${String(pair)}`,
+            `treats every value as an object with a single root, variant ${String(pair)}`,
+            `dispatches methods through a chain of ancestors, variant ${String(pair)}`,
+          ],
+        };
+      },
+    });
+
+    await handlerWith(varied)(jobFor(python.id));
+
+    const sources = questions
+      .listBySkill(python.id)
+      .flatMap((q) => q.options.filter((o) => !o.isCorrect).map((o) => o.sourceSkillId));
+    expect(sources.length).toBeGreaterThan(0);
+    expect(sources).not.toContain(unrelated.id);
   });
 });

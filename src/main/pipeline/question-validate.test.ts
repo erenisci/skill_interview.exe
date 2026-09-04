@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  looksLikeTrivia,
   MAX_LENGTH_RATIO,
   mentions,
   shuffle,
@@ -249,5 +250,43 @@ describe('shuffle', () => {
     // Options are assembled correct-first. Without this the answer is always option A.
     const moved = shuffle(['correct', 'b', 'c', 'd'], () => 0);
     expect(moved[0]).not.toBe('correct');
+  });
+});
+
+describe('looksLikeTrivia', () => {
+  it('rejects the shapes the model keeps returning', () => {
+    // All measured coming back from a real model, all perfectly separating, all teaching
+    // nothing but whether the reader memorised a number.
+    expect(looksLikeTrivia('The core software remains under a BSD license')).toBe(true);
+    expect(looksLikeTrivia('supports the WebSocket protocol (RFC6455 and RFC8441)')).toBe(true);
+    expect(looksLikeTrivia('was first released in 1995 as a research project')).toBe(true);
+    expect(looksLikeTrivia('was created by a team at a Norwegian university')).toBe(true);
+    expect(looksLikeTrivia('is the most popular option in its category')).toBe(true);
+    expect(looksLikeTrivia('serves 23% of the busiest sites on the web')).toBe(true);
+    expect(looksLikeTrivia('introduced multi-threading in version 1.8.0')).toBe(true);
+  });
+
+  it('keeps a capability that happens to contain a number', () => {
+    // The distinction the filter exists to make: 10,000 connections is what the technology
+    // does, where 1995 is when it happened.
+    expect(looksLikeTrivia('handles more than 10,000 simultaneous connections')).toBe(false);
+    expect(looksLikeTrivia('keeps up to 64 workers alive across a reload')).toBe(false);
+  });
+
+  it('does not fire on a word that merely contains a trivia word', () => {
+    // Without word boundaries `stars?` matches inside "restarts", and this claim — a real
+    // one from the fixtures — would have been thrown away.
+    expect(looksLikeTrivia('reloads workers gracefully and restarts them one at a time')).toBe(
+      false,
+    );
+    expect(looksLikeTrivia('transmits frames without buffering them first')).toBe(false);
+  });
+
+  it('keeps ordinary mechanism claims', () => {
+    expect(looksLikeTrivia('buffers slow client uploads before passing them along')).toBe(false);
+    expect(
+      looksLikeTrivia('resolves attribute lookups at run time rather than at compile time'),
+    ).toBe(false);
+    expect(looksLikeTrivia('uses significant indentation to define code blocks')).toBe(false);
   });
 });

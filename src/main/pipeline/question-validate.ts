@@ -104,6 +104,41 @@ export function stripLeadingSubject(text: string, names: readonly string[]): str
   return trimmed;
 }
 
+/**
+ * Facts that separate two technologies perfectly and teach nothing.
+ *
+ * The claims prompt already asks for a mechanism rather than history, and measured against a
+ * real model it still returns "remains under a BSD license", "supports WebSocket (RFC6455 and
+ * RFC8441)" and "was created in 1995". Those are correct, they are separating, and a reader
+ * who gets them right has learned that they can recall a number
+ * ([TD-13](../../../docs/project/tech-debt.md)).
+ *
+ * A code filter rather than a second model call, for the reason every guard here is
+ * ([guardrails.md](../../../docs/llm/guardrails.md)): a model asked to judge its own output is
+ * most confident exactly where it is most wrong.
+ */
+const TRIVIA_PATTERNS: readonly RegExp[] = [
+  // A year, a version number, an RFC. "10,000 simultaneous connections" is a capability and
+  // must survive, so these match the shapes dates and versions take, not digits in general.
+  /\b(19|20)\d{2}\b/,
+  /\bv?\d+\.\d+(\.\d+)?\b/,
+  /\bRFC\s?\d+/i,
+  // Licensing, ownership and provenance.
+  /\b(licen[cs]e[sd]?|licensing|copyright|trademark)\b/i,
+  /\b(BSD|MIT|Apache|GPL|AGPL|LGPL|MPL|EPL)\b/,
+  /\b(created|released|founded|developed|written|maintained|authored|introduced)\s+(by|in|at|on)\b/i,
+  // Popularity, which is a fact about the world rather than about the technology.
+  /\b(most|second|third)\s+(popular|widely|commonly)\b/i,
+  /\b\d+(\.\d+)?\s?%/,
+  // The boundaries are load-bearing: without them `stars?` matches inside "restarts".
+  /\b(stars?|downloads?|market share|adoption rate)\b/i,
+];
+
+/** Whether a claim tests recall of a fact rather than understanding of a mechanism. */
+export function looksLikeTrivia(text: string): boolean {
+  return TRIVIA_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 export function validateQuestion(candidate: CandidateQuestion): readonly string[] {
   const violations: string[] = [];
   const { options } = candidate;

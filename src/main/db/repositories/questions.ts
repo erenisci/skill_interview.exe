@@ -156,6 +156,14 @@ export class QuestionsRepository {
   }
 
   /** Active only by default: a flagged question has left rotation and should stay out. */
+  /** The questions drawn from one card — what "keep this card" has to carry with it. */
+  listByCard(cardId: number, status: QuestionStatus = 'active'): readonly Question[] {
+    const rows = this.db
+      .prepare('SELECT * FROM questions WHERE card_id = ? AND status = ? ORDER BY id')
+      .all(cardId, status) as QuestionRow[];
+    return rows.map((row) => this.hydrate(row));
+  }
+
   listBySkill(skillId: number, status: QuestionStatus = 'active'): readonly Question[] {
     const rows = this.db
       .prepare('SELECT * FROM questions WHERE skill_id = ? AND status = ? ORDER BY id ASC')
@@ -334,6 +342,26 @@ export class QuestionsRepository {
    */
   claimsAgainst(skillId: number, subjectIds: readonly number[]): readonly Claim[] {
     return this.claimsWhere('contrast_skill_id = ?', 'skill_id', skillId, subjectIds);
+  }
+
+  /**
+   * **Every** claim written to be false of this skill, whoever wrote it.
+   *
+   * The safety argument for showing a claim as a wrong answer is that it was generated with
+   * both technologies in view and separated there — it does not depend on the author still
+   * being a graph neighbour today. Restricting the pool to the neighbours a run happened to
+   * pick conflated two different questions: *who to generate new claims with*, and *whose
+   * existing claims may be borrowed*.
+   *
+   * Measured on a real database: Python had three claims written against it and could reach
+   * only two, because the third belonged to a skill that failed classification and so was
+   * nobody's neighbour. One short of a question, permanently.
+   */
+  allClaimsAgainst(skillId: number): readonly Claim[] {
+    const rows = this.db
+      .prepare('SELECT * FROM claims WHERE contrast_skill_id = ? ORDER BY id')
+      .all(skillId) as ClaimRow[];
+    return rows.map(toClaim);
   }
 
   private claimsWhere(

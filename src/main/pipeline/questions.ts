@@ -20,6 +20,7 @@ import type { JobHandler } from '../queue/queue';
 import { truncate } from '../search/extract';
 import { log } from '../util/logger';
 import {
+  looksLikeTrivia,
   mentions,
   normalizeClaim,
   shuffle,
@@ -151,6 +152,11 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
     // Already ordered by preference and shuffled within each tier, so this takes the best
     // available rather than a random sample of everything.
     const chosen = neighbours.slice(0, MAX_PAIRS_PER_RUN);
+    const relatedIds = new Set(
+      deps.relations
+        .listFor(skill.id)
+        .map((relation) => RelationsRepository.otherSide(relation, skill.id)),
+    );
     const dropped: string[] = [];
     const nameOf = new Map(chosen.map((n) => [n.id, n.name]));
 
@@ -176,12 +182,16 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
       )
       .filter((claim) => !asked.has(normalizeClaim(claim.text)));
 
-    // Each of these was written to be false of this skill specifically, which is what
-    // makes it safe to show as a wrong answer.
-    const pool = deps.questions.claimsAgainst(
-      skill.id,
-      chosen.map((n) => n.id),
-    );
+    // Each of these was written to be false of this skill specifically, which is what makes
+    // it safe to show as a wrong answer — and that property belongs to the claim, not to
+    // whoever wrote it still being a neighbour. So the pool is every such claim, while
+    // `chosen` decides only which *new* pairs are worth generating.
+    //
+    // Restricting the pool to `chosen` was a real defect: on a live database Python had
+    // three claims written against it and could reach two, because the third belonged to a
+    // skill that had failed classification and so was nobody's neighbour. One short of a
+    // question, for good.
+    const pool = deps.questions.allClaimsAgainst(skill.id);
 
     let written = 0;
     if (pool.length < DISTRACTORS_NEEDED) {
@@ -192,7 +202,16 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
       for (const correct of shuffle(own, random)) {
         if (written >= missing) break;
 
-        const built = await buildOne(skill, primer.id, correct, pool, nameOf, deps, random);
+        const built = await buildOne(
+          skill,
+          primer.id,
+          correct,
+          pool,
+          nameOf,
+          relatedIds,
+          deps,
+          random,
+        );
         if (!built.ok) {
           dropped.push(built.error.code);
           continue;
@@ -268,7 +287,11 @@ function primerFor(deps: QuestionsDeps, skillId: number): Card | null {
  * few can drop a real neighbour in favour of an unrelated skill, quietly undoing the
  * preference this function exists to express. A test caught it.
  */
-function borrowFrom(deps: QuestionsDeps, skillId: number, random: () => number): readonly Skill[] {
+export function borrowFrom(
+  deps: QuestionsDeps,
+  skillId: number,
+  random: () => number,
+): readonly Skill[] {
   const related: Skill[] = [];
   const seen = new Set<number>([skillId]);
 
@@ -391,6 +414,10 @@ async function ensurePairClaims(
   const fresh = (text: string): boolean => {
     const key = normalizeClaim(text);
     if (key.length === 0 || seen.has(key)) return false;
+    // Trivia separates two technologies perfectly and teaches nothing. The prompt already
+    // asks for a mechanism and the model returns licences and RFC numbers anyway, so this
+    // is enforced in code rather than requested ([TD-13](../../../docs/project/tech-debt.md)).
+    if (looksLikeTrivia(text)) return false;
     seen.add(key);
     return true;
   };
@@ -430,12 +457,39 @@ async function buildOne(
   correct: Claim,
   pool: readonly Claim[],
   nameOf: ReadonlyMap<number, string>,
+  relatedIds: ReadonlySet<number>,
   deps: QuestionsDeps,
   random: () => number,
 ): Promise<Result<void>> {
-  // Spread across neighbours where there are enough of them: three wrong answers from
-  // three different technologies teach more than three from one.
-  const distractors = spread(shuffle(pool, random)).slice(0, DISTRACTORS_NEEDED);
+  // Two orderings, in this order, and both matter.
+  //
+  // **Related first.** The pool is every claim written against this skill, whoever wrote it —
+  // which is what makes a skill with few neighbours askable at all. But a wrong answer drawn
+  // from an unrelated technology is a worse question: nobody confuses a query language with a
+  // cloud platform, so the option is not plausible and teaches nothing. Preference, not a
+  // rule, so an isolated skill still gets asked about.
+  //
+  // **Then spread across skills**, so three wrong answers come from three technologies rather
+  // than three times from one.
+  // Genuine graph neighbours, not `chosen` — `chosen` already contains the fallback skills
+  // that make an isolated skill askable, so using it here would call every borrowed claim
+  // related and the preference would mean nothing.
+  const related = relatedIds;
+  const ranked = [
+    ...spread(
+      shuffle(
+        pool.filter((c) => related.has(c.skillId)),
+        random,
+      ),
+    ),
+    ...spread(
+      shuffle(
+        pool.filter((c) => !related.has(c.skillId)),
+        random,
+      ),
+    ),
+  ];
+  const distractors = ranked.slice(0, DISTRACTORS_NEEDED);
   const involved = [skill.name, ...new Set(distractors.map((d) => nameOf.get(d.skillId) ?? ''))];
 
   const stem = await deps.llm.generate({
