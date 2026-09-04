@@ -36,11 +36,10 @@ running on the default where one is possible.
 
 | Key                 | Default                  | Meaning                                                                    |
 | ------------------- | ------------------------ | -------------------------------------------------------------------------- |
-| `daily_cards`       | `3`                      | How many cards per day                                                     |
-| `daily_questions`   | `5`                      | How many questions per day                                                 |
 | `reminder_enabled`  | `true`                   | Whether the reminder notification fires                                    |
 | `reminder_time`     | `18:00`                  | Local `HH:MM`, 24-hour, for the reminder                                   |
 | `close_to_tray`     | `true`                   | Closing the window hides it in the tray instead of quitting                |
+| `launch_at_startup` | `false`                  | Register a Windows login item; packaged builds only                        |
 | `ollama_url`        | `http://localhost:11434` | Where Ollama is reached                                                    |
 | `ollama_model`      | unset                    | Chosen from Ollama's installed list; no default is invented                |
 | `github_token`      | unset                    | User's own GitHub token. Raises the search rate limit only; never required |
@@ -58,12 +57,12 @@ A `tavily` / `brave` search provider is discussed as a possible upgrade in
 [../llm/rag-sources.md](../llm/rag-sources.md) but **is not built**, and there is deliberately no setting for one
 here — the settings table lists what the app reads, not what it might read one day.
 
-**`daily_cards`, `daily_questions` and `reminder_time` were TBD until M-5 built the scheduler that needed real
-numbers.** They are deliberate but not evidence-based — `daily_questions: 5` matches `TARGET_QUESTIONS` in
-`pipeline/questions.ts`, so a single researched skill's full question set fills the day on its own; `18:00` is an
-ordinary after-work hour with no study behind it. First candidates to revisit once real use has an opinion — the app
-is public rather than gated behind a private trial ([roadmap.md, M-9](../project/roadmap.md))
-([`src/main/db/repositories/settings.ts`](../../src/main/db/repositories/settings.ts)).
+**There is no global "cards per day" any more.** A day is summed from what each skill contributes, because a single
+number divided among skills makes every skill added shrink every skill already there — which is backwards. Adding a
+skill should mean more to read tomorrow. See **Per-skill limits** below.
+
+`reminder_time` is deliberate but not evidence-based: `18:00` is an ordinary after-work hour with no study behind it,
+and the first candidate to revisit once real use has an opinion.
 
 **`close_to_tray` defaults to on**, which is the one default here that overrides an OS convention, so it earns a
 reason. The reminder is the product's only mechanism for making this a daily habit, and a notification at 18:00
@@ -82,17 +81,18 @@ an unset value routes to the setup screen, which is the correct behaviour.
 
 ## Per-skill limits
 
-The two daily counts above say how big a day is. They say nothing about **where** the day's material comes from, and
-assembly used to take whatever the pool offered first — which, in id order, meant the earliest-added skills filled
-the whole set and the newest ones were never seen. Four skills and four cards a day should be one card from each.
+A day is what the user's skills add up to. Each skill contributes `PER_SKILL_DEFAULTS` — one card and two questions —
+unless it says otherwise on its own page, so four skills is a six-item day and adding a fifth makes tomorrow bigger
+rather than thinner.
 
-So the daily set is laid out **one item per skill before a second from any of them**, and each skill carries an
-optional cap of its own, set on its page rather than here:
+The set is also laid out **one item per skill before a second from any of them**. Assembly used to take whatever the
+pool offered first, which in id order meant the earliest-added skills filled the whole day and the newest were never
+seen at all.
 
-| Column                   | Blank (`NULL`)                             | `0`                         | `n`                         |
-| ------------------------ | ------------------------------------------ | --------------------------- | --------------------------- |
-| `skills.daily_cards`     | No cap; the global count and spread decide | Not today — parks the skill | At most `n` cards today     |
-| `skills.daily_questions` | Same                                       | Same                        | At most `n` questions today |
+| Column                   | Blank (`NULL`)                          | `0`                         | `n`                         |
+| ------------------------ | --------------------------------------- | --------------------------- | --------------------------- |
+| `skills.daily_cards`     | Contributes the default — one card      | Not today — parks the skill | At most `n` cards today     |
+| `skills.daily_questions` | Contributes the default — two questions | Same                        | At most `n` questions today |
 
 `0` exists so a skill can be paused without deleting it, which would take its review history with it.
 
@@ -103,16 +103,12 @@ Every write goes through `validateSetting()`
 This is load-bearing rather than polish: a `reminder_time` the reminder cannot parse makes it return "not due"
 forever, and nothing on screen would say why.
 
-| Key                                                      | Accepted                                   | Normalised                |
-| -------------------------------------------------------- | ------------------------------------------ | ------------------------- |
-| `daily_cards`, `daily_questions`                         | A whole number, 0–50. Empty is **refused** | Trimmed                   |
-| `reminder_time`                                          | 24-hour `H:MM` or `HH:MM`                  | Zero-padded to `HH:MM`    |
-| `reminder_enabled`, `close_to_tray`, `launch_at_startup` | `true` / `false`                           | —                         |
-| `ollama_url`                                             | A parseable `http:` or `https:` URL        | Trailing slashes stripped |
-| Anything else (incl. `github_token`)                     | Passes through                             | Trimmed                   |
-
-Zero is a legitimate count — a user who wants only questions sets `daily_cards` to 0 deliberately. An **empty** field
-is not: `Number('')` is 0, so accepting it would silently mean "nothing today" rather than being refused.
+| Key                                                      | Accepted                            | Normalised                |
+| -------------------------------------------------------- | ----------------------------------- | ------------------------- |
+| `reminder_time`                                          | 24-hour `H:MM` or `HH:MM`           | Zero-padded to `HH:MM`    |
+| `reminder_enabled`, `close_to_tray`, `launch_at_startup` | `true` / `false`                    | —                         |
+| `ollama_url`                                             | A parseable `http:` or `https:` URL | Trailing slashes stripped |
+| Anything else (incl. `github_token`)                     | Passes through                      | Trimmed                   |
 
 Unknown keys pass through on purpose. This guards what the app reads; it is not a registry of everything it may store.
 A refusal keeps the stored value and names the field, and the settings screen reloads from storage rather than leaving

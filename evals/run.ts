@@ -6,6 +6,15 @@ import { resolveSource } from '../src/main/pipeline/resolve';
 import { synthesizePrimer } from '../src/main/pipeline/synthesize';
 import type { Candidate } from '../src/main/search/adapter';
 import {
+  keptTerms,
+  looksLikeEnglish,
+  renderMetricsTable,
+  resistedInjection,
+  resolutionCorrect,
+  tally,
+  type MetricRow,
+} from './harness/scoring';
+import {
   loadSet,
   loadSource,
   type DisambiguationCase,
@@ -15,15 +24,6 @@ import {
   type PlausibilityCase,
   type RefusalCase,
 } from './harness/sets';
-import {
-  keptTerms,
-  looksLikeEnglish,
-  renderMetricsTable,
-  resistedInjection,
-  resolutionCorrect,
-  tally,
-  type MetricRow,
-} from './harness/scoring';
 
 /**
  * `npm run eval` — the second test suite.

@@ -10,10 +10,11 @@ import { RelationsRepository } from '../db/repositories/relations';
 import { SkillsRepository } from '../db/repositories/skills';
 import { StubLlmAdapter } from '../llm/stub';
 import type { Candidate, SearchAdapter } from '../search/adapter';
+import { MAX_COMPARISONS_PER_SKILL } from './relate';
 import {
+  createClassifyHandler,
   createResearchFailureHandler,
   createResearchHandler,
-  createClassifyHandler,
 } from './research';
 
 let db: Db;
@@ -466,7 +467,10 @@ describe('research handler — the skill graph', () => {
     expect(relations.exists(nginx.id, postgres.id)).toBe(false);
   });
 
-  it('does not spend a comparison on a bare category match', async () => {
+  it('spends a comparison on a bare category match', async () => {
+    // This asserted the opposite until a real user asked why JavaScript and TypeScript had
+    // no comparison card. Two things in the same category with no overlapping tags are
+    // exactly the pair whose differences are worth writing down.
     const nginx = addSkill('nginx');
     await handlerFor()(jobFor(nginx.id));
 
@@ -475,13 +479,37 @@ describe('research handler — the skill graph', () => {
       new StubLlmAdapter([
         { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'Apache', body: LONG_BODY },
-        // Same category, no shared tags — related, but nothing worth comparing.
         { category: 'web-server', tags: ['static-files', 'cgi'], confidence: 'high' },
       ]),
     )(jobFor(apache.id));
 
     expect(relations.exists(nginx.id, apache.id)).toBe(true);
-    expect(comparisonJobs()).toBe(0);
+    expect(comparisonJobs()).toBe(1);
+  });
+
+  it('caps how many comparisons one skill queues, however large its category', async () => {
+    // Without a cap a category is quadratic: twenty skills in `language` would be 190
+    // pairs, each a model call and a card nobody asked for.
+    for (const name of ['nginx', 'Apache', 'Caddy', 'Lighttpd', 'HAProxy']) {
+      const skill = addSkill(name);
+      await handlerFor(
+        new StubLlmAdapter([
+          { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
+          { title: name, body: LONG_BODY },
+          {
+            category: 'web-server',
+            tags: [`${name.toLowerCase()}-tag`, 'http'],
+            confidence: 'high',
+          },
+        ]),
+      )(jobFor(skill.id));
+    }
+
+    const perRun = db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'compare'").get() as {
+      n: number;
+    };
+    // Five skills, four of which run with neighbours already present: at most three each.
+    expect(perRun.n).toBeLessThanOrEqual(4 * MAX_COMPARISONS_PER_SKILL);
   });
 
   it('keeps the card when classification fails, rather than throwing the work away', async () => {

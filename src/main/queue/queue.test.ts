@@ -378,3 +378,34 @@ describe('JobsRepository.deleteForSkill', () => {
     expect(jobs.deleteForSkill(99)).toBe(0);
   });
 });
+
+describe('JobsRepository.isWorkingOn', () => {
+  it('is true while the job is queued and while it runs', () => {
+    jobs.enqueue('generate-questions', { skillId: 4 }, START.toISOString());
+    expect(jobs.isWorkingOn('generate-questions', 4)).toBe(true);
+
+    jobs.claimNext(START.toISOString());
+    expect(jobs.isWorkingOn('generate-questions', 4)).toBe(true);
+  });
+
+  it('is false once it has finished, however it finished', () => {
+    // This is what the empty state needs to know. It used to promise questions were "being
+    // written in the background" regardless, which on a real database was false for four
+    // skills out of six.
+    const done = jobs.enqueue('generate-questions', { skillId: 4 }, START.toISOString());
+    jobs.finish(done.id, 'done', START.toISOString());
+    expect(jobs.isWorkingOn('generate-questions', 4)).toBe(false);
+
+    const failed = jobs.enqueue('generate-questions', { skillId: 5 }, START.toISOString());
+    jobs.finish(failed.id, 'failed', START.toISOString(), 'nothing to ask about');
+    expect(jobs.isWorkingOn('generate-questions', 5)).toBe(false);
+  });
+
+  it('does not confuse kinds, or skills whose ids share a prefix', () => {
+    jobs.enqueue('research', { skillId: 4 }, START.toISOString());
+    expect(jobs.isWorkingOn('generate-questions', 4)).toBe(false);
+
+    jobs.enqueue('generate-questions', { skillId: 41 }, START.toISOString());
+    expect(jobs.isWorkingOn('generate-questions', 4)).toBe(false);
+  });
+});

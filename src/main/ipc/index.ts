@@ -10,8 +10,9 @@ import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { applyLlmSettings, type AppContext } from '../context';
 import { currentVersion } from '../db/migrate';
-import { exportFavoritesMarkdown, hydrateFavorites } from '../export/favorites';
 import { RelationsRepository } from '../db/repositories/relations';
+import { exportFavoritesMarkdown, hydrateFavorites } from '../export/favorites';
+import { DISTRACTORS_NEEDED } from '../pipeline/questions';
 import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
 import { checkLlmReadiness } from '../startup/readiness';
 import { log } from '../util/logger';
@@ -161,6 +162,17 @@ export function registerIpc(ctx: AppContext, appVersion: string, effects: IpcEff
 
   handle(CHANNELS.questionsForSkill, ctx, (skillId) => ok(ctx.questions.listBySkill(skillId)));
 
+  // What the empty state needs in order to stop guessing. It used to say questions were
+  // "being written in the background" whether or not anything was, which on a real database
+  // was false for four skills out of six.
+  handle(CHANNELS.questionsStatus, ctx, (skillId) => {
+    return ok({
+      distractors: ctx.questions.allClaimsAgainst(skillId).length,
+      needed: DISTRACTORS_NEEDED,
+      working: ctx.jobs.isWorkingOn('generate-questions', skillId),
+    });
+  });
+
   handle(CHANNELS.questionsFlag, ctx, (request) => {
     // The renderer sends a union member, but IPC input is untrusted regardless of what
     // the type says — a value outside the enum would otherwise reach a CHECK constraint
@@ -230,6 +242,37 @@ export function registerIpc(ctx: AppContext, appVersion: string, effects: IpcEff
     ctx.favorites.add(request.itemType, request.itemId, new Date().toISOString());
     log.info('ipc', 'favourite added', { itemType: request.itemType });
     return ok(true);
+  });
+
+  /**
+   * A card and its questions are kept together, because they are one thing to the reader:
+   * the material and what it asks. Keeping them separately made it possible to keep a
+   * question whose card was not kept, and then to export a question with no explanation of
+   * where it came from.
+   *
+   * Whether it keeps or drops is decided by the **card**, and the questions follow it. Any
+   * other rule produces a half-kept group whose star does not match what pressing it does.
+   */
+  handle(CHANNELS.favoritesToggleCard, ctx, (cardId) => {
+    const card = ctx.cards.findById(cardId);
+    if (!card) return err(appError('validation', 'unknown-card', `no card with id ${cardId}`));
+
+    const questions = ctx.questions.listByCard(cardId);
+    const now = new Date().toISOString();
+    const keeping = ctx.favorites.find('card', cardId) === null;
+
+    if (keeping) {
+      ctx.favorites.add('card', cardId, now);
+      for (const question of questions) ctx.favorites.add('question', question.id, now);
+    } else {
+      ctx.favorites.remove('card', cardId);
+      for (const question of questions) ctx.favorites.remove('question', question.id);
+    }
+
+    log.info('ipc', keeping ? 'card group kept' : 'card group dropped', {
+      questions: questions.length,
+    });
+    return ok(keeping);
   });
 
   handle(CHANNELS.favoritesNote, ctx, (request) => {

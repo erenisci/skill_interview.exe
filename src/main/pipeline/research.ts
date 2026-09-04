@@ -10,7 +10,7 @@ import type { SearchAdapter } from '../search/adapter';
 import { truncate } from '../search/extract';
 import { log } from '../util/logger';
 import { classifySkill, type Category } from './classify';
-import { earnsComparison, relationsFor, type Relation } from './relate';
+import { earnsComparison, MAX_COMPARISONS_PER_SKILL, relationsFor, type Relation } from './relate';
 import { resolveSource } from './resolve';
 import { synthesizePrimer } from './synthesize';
 
@@ -254,8 +254,12 @@ function enqueueComparisons(
   relations: readonly Relation[],
   now: string,
 ): void {
-  for (const relation of relations) {
-    if (!earnsComparison(relation)) continue;
+  const strongest = [...relations]
+    .filter(earnsComparison)
+    .sort((a, b) => b.strength - a.strength)
+    .slice(0, MAX_COMPARISONS_PER_SKILL);
+
+  for (const relation of strongest) {
     deps.jobs.enqueueUnique(
       'compare',
       { skillAId: relation.skillAId, skillBId: relation.skillBId },

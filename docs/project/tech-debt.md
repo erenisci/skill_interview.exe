@@ -299,3 +299,28 @@ that can never be asked about.
 **Worth remembering.** The termination argument was written down, in a comment, and was simply wrong. A loop whose
 exit depends on work succeeding needs a test that runs it when the work cannot succeed — which is exactly the case
 nobody thinks to write.
+
+### TD-22 — Tag overlap was reading "similar" where the product wanted "comparable"
+
+**What.** A comparison card needed `strength >= 0.6`, and same-category pairs start at 0.5 with tag overlap raising
+them. So two skills in the same category with no overlapping tags got no card.
+**Why that was wrong.** A real user asked the obvious question — JavaScript and TypeScript, the most comparable pair
+imaginable, produced nothing. Inside a category, non-overlapping tags mean the two **differ**, which is precisely
+what a comparison card explains. The heuristic was ranking on similarity and gating on it too.
+**Fixed 2026-09-04.** Sharing a category now earns a card; overlap only ranks. The combinatorial risk the old
+threshold was really guarding — twenty skills in one category is 190 pairs — moved to where it belongs, a cap of
+three comparisons enqueued per skill, strongest first.
+**Still open.** The underlying heuristic is unchanged and still recorded as
+[TD-03](#td-03--tag-overlap-as-the-relation-heuristic): tags come from one model call and nothing measures whether
+they group skills the way a reader would.
+
+### TD-23 — A thin tag list used to cost the skill its category
+
+**What.** Classification refused outright when fewer than two usable tags survived cleaning, which threw away the
+category with them.
+**Why it mattered.** Measured live: every tag the model returned for JavaScript named JavaScript, so `cleanTags`
+stripped them all, classification failed, and the skill was left with no category — and therefore no neighbours, no
+comparison cards, and the worst possible distractor pool. The category is the half the graph actually needs; tags
+only rank a relation's strength.
+**Fixed 2026-09-04.** A thin tag list is refused only when the model is also unsure of the category. A confident
+category with no tags is a blunt but usable graph node.

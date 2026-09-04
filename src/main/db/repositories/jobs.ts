@@ -163,6 +163,17 @@ export class JobsRepository {
     ).changes;
   }
 
+  /** Whether work of this kind for this skill is queued or running right now. */
+  isWorkingOn(kind: JobKind, skillId: number): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS present FROM jobs
+         WHERE kind = ? AND payload LIKE ? AND status IN ('pending', 'running') LIMIT 1`,
+      )
+      .get(kind, `%"skillId":${String(skillId)}}%`) as { present: number } | undefined;
+    return row !== undefined;
+  }
+
   countByStatus(status: JobStatus): number {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM jobs WHERE status = ?').get(status) as {
       n: number;

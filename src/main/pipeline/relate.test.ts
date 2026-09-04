@@ -67,14 +67,16 @@ describe('relate — the roadmap exit criteria', () => {
 });
 
 describe('relate — the rest of the rules', () => {
-  it('links same-category skills even with no shared tags, but weakly', () => {
+  it('links same-category skills with no shared tags, and that is worth comparing', () => {
     const relation = relate(nginx, apache);
     expect(relation).not.toBeNull();
     if (!relation) return;
     expect(relation.kind).toBe('same-category');
     expect(relation.strength).toBeCloseTo(0.5);
-    // Related enough to be neighbours, not enough to spend a card comparing.
-    expect(earnsComparison(relation)).toBe(false);
+    // Sharing a category is the comparability signal, and tags that do *not* overlap mean
+    // the two differ — which is what a comparison card is for. The rule used to be the
+    // other way round, and JavaScript and TypeScript got no card because of it.
+    expect(earnsComparison(relation)).toBe(true);
   });
 
   it('links across categories when the tag overlap is real', () => {
@@ -123,7 +125,12 @@ describe('relationsFor', () => {
 });
 
 describe('COMPARISON_THRESHOLD', () => {
-  it('sits above a bare category match, so a shared category alone is not a card', () => {
-    expect(COMPARISON_THRESHOLD).toBeGreaterThan(0.5);
+  it('lets a shared category alone earn a card', () => {
+    expect(COMPARISON_THRESHOLD).toBeLessThanOrEqual(0.5);
+  });
+
+  it('still refuses a pair that shares neither a category nor enough tags', () => {
+    // The threshold moved; the rule that unrelated things stay unrelated did not.
+    expect(relate(nginx, { id: 99, category: 'database', tags: ['sql'] })).toBeNull();
   });
 });

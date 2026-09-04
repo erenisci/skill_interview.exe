@@ -107,10 +107,15 @@ export async function classifySkill(
   const { category, confidence } = generation.value.value;
   const tags = cleanTags(generation.value.value.tags, skill);
 
-  // Too few usable tags leaves nothing to separate near neighbours with, so the skill
-  // would relate to everything in its category or nothing at all. Better to fail and
-  // retry than to build a graph on it.
-  if (tags.length < MIN_TAGS) {
+  // Too few usable tags used to fail the whole classification, which threw away the
+  // category with them — and the category is the half the graph actually needs. Measured
+  // live: JavaScript's tags all named JavaScript, so every one was stripped, the skill was
+  // left uncategorised, and it related to nothing at all. Tags only rank a relation's
+  // strength; the category is what creates it.
+  //
+  // So a thin tag list is now only worth refusing when the model is also unsure of the
+  // category. A confident category with no tags is a usable, if blunt, graph node.
+  if (tags.length < MIN_TAGS && confidence === 'low') {
     return err(
       appError(
         'validation',

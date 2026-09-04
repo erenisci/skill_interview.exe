@@ -43,8 +43,28 @@ export function tagSimilarity(a: readonly string[], b: readonly string[]): numbe
  */
 const CROSS_CATEGORY_MIN = 0.34;
 
-/** Below this a pair is related but not interesting enough to spend a card on. */
-export const COMPARISON_THRESHOLD = 0.6;
+/**
+ * Below this a pair is related but not interesting enough to spend a card on.
+ *
+ * Lowered from 0.6 to the same-category floor after a real user asked the obvious question:
+ * JavaScript and TypeScript got no comparison card. The heuristic was reading tag overlap
+ * as "how comparable", which is backwards inside a category — two languages whose tags do
+ * *not* overlap differ more, and explaining that difference is exactly what a comparison
+ * card is for. Sharing a category is the comparability signal; overlap only ranks.
+ *
+ * The combinatorial risk that 0.6 was guarding against is real and is now handled where it
+ * belongs, by capping how many comparisons one skill enqueues rather than by refusing the
+ * pairs a reader would most want ([TD-03](../../../docs/project/tech-debt.md)).
+ */
+export const COMPARISON_THRESHOLD = 0.5;
+
+/**
+ * At most this many comparison cards per skill, strongest first.
+ *
+ * Without a cap, one large category is quadratic: twenty skills in `language` would be 190
+ * pairs, each a model call and a card nobody asked for.
+ */
+export const MAX_COMPARISONS_PER_SKILL = 3;
 
 export function relate(a: Classified, b: Classified): Relation | null {
   if (a.id === b.id) return null;
