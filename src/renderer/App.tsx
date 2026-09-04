@@ -3,10 +3,11 @@ import { CHANNELS } from '@shared/ipc';
 import { useCallback, useEffect, useState } from 'react';
 import { DailyView } from './views/DailyView';
 import { FavoritesView } from './views/FavoritesView';
+import { SettingsView } from './views/SettingsView';
 import { SetupView } from './views/SetupView';
 import { SkillsView } from './views/SkillsView';
 
-type Tab = 'today' | 'skills' | 'kept';
+type Tab = 'today' | 'skills' | 'kept' | 'settings';
 
 type Load =
   | { state: 'loading' }
@@ -80,12 +81,16 @@ export function App(): React.JSX.Element {
         <button className={tab === 'kept' ? 'primary' : ''} onClick={() => setTab('kept')}>
           Kept
         </button>
+        <button className={tab === 'settings' ? 'primary' : ''} onClick={() => setTab('settings')}>
+          Settings
+        </button>
       </div>
       {tab === 'today' && <DailyView />}
       {tab === 'skills' && (
         <SkillsView status={load.status} onOpenSetup={() => setBypassSetup(false)} />
       )}
       {tab === 'kept' && <FavoritesView />}
+      {tab === 'settings' && <SettingsView status={load.status} onChanged={() => refresh()} />}
     </div>
   );
 }
