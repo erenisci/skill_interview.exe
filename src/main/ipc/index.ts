@@ -15,6 +15,7 @@ import { RelationsRepository } from '../db/repositories/relations';
 import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
 import { checkLlmReadiness } from '../startup/readiness';
 import { log } from '../util/logger';
+import { validateSetting } from '../util/settings-validation';
 import { looksLikeAList, normalizeSkillName, toSlug } from '../util/slug';
 
 type Handler<C extends Channel> = (
@@ -236,7 +237,12 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
   handle(CHANNELS.settingsGet, ctx, (key) => ok(ctx.settings.get(key)));
 
   handle(CHANNELS.settingsSet, ctx, async ({ key, value }) => {
-    ctx.settings.set(key, value);
+    // Validated at the boundary: the settings screen writes the keys the scheduler and the
+    // reminder read, and a value they cannot parse fails silently rather than loudly —
+    // a malformed reminder time simply never fires again.
+    const checked = validateSetting(key, value);
+    if (!checked.ok) return checked;
+    ctx.settings.set(key, checked.value);
     // These two decide which adapter `buildLlmAdapter` produces; every other setting is
     // read fresh by whatever uses it next; the model choice is baked into a live object,
     // wired at startup, that nothing else knows how to rebuild but did anyway.
