@@ -96,7 +96,9 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
         <form className="row" onSubmit={(e) => void add(e)}>
           <input
             style={{ flex: 1 }}
-            placeholder="nginx, Traefik, WSL…"
+            // Singular on purpose: the form adds one skill per submit, and a comma-separated
+            // placeholder invites a list that would be stored as a single nonsense skill.
+            placeholder="e.g. Kubernetes"
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Skill name"

@@ -15,7 +15,7 @@ import { RelationsRepository } from '../db/repositories/relations';
 import { getTodaysSet, recordAnswer } from '../scheduler/daily-set-service';
 import { checkLlmReadiness } from '../startup/readiness';
 import { log } from '../util/logger';
-import { normalizeSkillName, toSlug } from '../util/slug';
+import { looksLikeAList, normalizeSkillName, toSlug } from '../util/slug';
 
 type Handler<C extends Channel> = (
   request: IpcRequest<C>,
@@ -60,6 +60,12 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
     const name = normalizeSkillName(request.name);
     if (name.length === 0) {
       return err(appError('validation', 'empty-name', 'a skill needs a name'));
+    }
+
+    if (looksLikeAList(name)) {
+      return err(
+        appError('validation', 'looks-like-a-list', 'add one skill at a time, without commas'),
+      );
     }
 
     const slug = toSlug(name);

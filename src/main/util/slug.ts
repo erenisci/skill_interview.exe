@@ -17,3 +17,17 @@ export const MAX_SKILL_NAME_LENGTH = 80;
 export function normalizeSkillName(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim().slice(0, MAX_SKILL_NAME_LENGTH);
 }
+
+/**
+ * Whether the user pasted a list instead of typing one skill.
+ *
+ * The form adds one skill per submit, so "nginx, Traefik" would become a single skill by
+ * that name: searched for as one string, slugged to `nginx-traefik`, and grounded in
+ * whatever that query happens to return. Catching it costs one check and saves a nonsense
+ * row plus a wasted research job.
+ *
+ * Comma and semicolon only. A slash is legitimate — CI/CD and TCP/IP are real names.
+ */
+export function looksLikeAList(name: string): boolean {
+  return /[,;]/.test(name);
+}
