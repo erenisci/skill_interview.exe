@@ -2,7 +2,7 @@
 title: Feature Specs
 discipline: product
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Feature Specs
@@ -129,14 +129,22 @@ grouped by skill, preserving explanations, notes, and source links.
 **Summary.** Get the user from install to a working app, and hold their preferences.
 
 **Behavior.** On launch the app probes Ollama and the installed model list. Missing runtime or model routes to the
-setup screen with the exact commands to run. Settings cover content language, daily counts, reminder time, model
-choice, and optional search API key.
+setup screen with the exact commands to run. Settings cover content language, daily counts, reminder, model choice,
+Ollama URL, and an optional GitHub token that only raises a search rate limit.
+
+Each field saves on its own, on blur or on toggle, rather than behind a Save button, and is validated in the main
+process ([../operations/configuration.md](../operations/configuration.md)) — so a bad value is refused at the field
+that caused it instead of silently breaking the scheduler.
 
 **Edge Cases.**
 
 - Ollama installed but no model pulled → distinguish this from "Ollama missing"; the fix differs.
 - Ollama on a non-default port → the URL is configurable.
 - The selected model is removed from Ollama → detected on next generation, surfaced as a setting error.
+- Changing the model or URL → takes effect immediately; the running model is released and the new one takes over
+  without a restart.
+- A value the app cannot use — an unparseable reminder time, an empty daily count → refused, the stored value is kept,
+  and the screen reloads from storage rather than leaving the invalid value on screen looking accepted.
 - Changing the content language mid-life → applies to new generation only; existing content is not retranslated.
 
 **Out of Scope.** In-app model download, bundled inference.

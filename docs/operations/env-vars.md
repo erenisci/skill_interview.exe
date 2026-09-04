@@ -2,7 +2,7 @@
 title: Environment Variables
 discipline: ops
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Environment Variables
@@ -36,24 +36,25 @@ wrong way — see below.
 
 ## Where configuration actually lives
 
-| Setting                         | Stored in                        | Set by      |
-| ------------------------------- | -------------------------------- | ----------- |
-| Content language                | `settings` table                 | Settings UI |
-| Daily card and question counts  | `settings` table                 | Settings UI |
-| Reminder time                   | `settings` table                 | Settings UI |
-| Selected Ollama model           | `settings` table                 | Settings UI |
-| Ollama URL                      | `settings` table                 | Settings UI |
-| Optional Tavily / Brave API key | `settings` table, local database | Settings UI |
+| Setting                        | Stored in                        | Set by      |
+| ------------------------------ | -------------------------------- | ----------- |
+| Content language               | `settings` table                 | Settings UI |
+| Daily card and question counts | `settings` table                 | Settings UI |
+| Reminder time                  | `settings` table                 | Settings UI |
+| Selected Ollama model          | `settings` table                 | Settings UI |
+| Ollama URL                     | `settings` table                 | Settings UI |
+| Optional GitHub token          | `settings` table, local database | Settings UI |
 
 ## Secrets
 
 **No secret ever enters the repository, an environment variable, or a log file.**
 
-The only credential this product can hold is an optional user-supplied search API key. It is:
+The only credential this product can hold is an optional user-supplied GitHub token. It is:
 
 - entered in the settings UI, never in a file the user has to edit;
 - stored in the local database, on the user's machine only;
-- never logged, never included in an export, never sent anywhere except the provider it belongs to;
-- never required — the default search path works without any key, because an open-source repository cannot ship one.
+- never logged, never included in an export, never sent anywhere except GitHub;
+- never required — it only raises GitHub's rate limit from 60 to 5000 requests an hour. The search path works
+  without any credential, because an open-source repository cannot ship one.
 
 A key in a `.env`, a config file, or a commit is a defect, not a convenience ([security.md](security.md)).

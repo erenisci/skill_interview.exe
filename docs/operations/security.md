@@ -2,7 +2,7 @@
 title: Security
 discipline: ops
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Security
@@ -23,10 +23,10 @@ Adding accounts would mean a server, which would undo the product's privacy guar
 
 ## Secrets
 
-| Secret                            | Where                            | Rules                                                                             |
-| --------------------------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| User's search API key (optional)  | `settings` table, local database | Never logged, never exported, never leaves the machine except to its own provider |
-| Code-signing certificate (future) | GitHub encrypted secret          | Tag workflow only; never exposed to fork builds                                   |
+| Secret                            | Where                            | Rules                                                                   |
+| --------------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| User's GitHub token (optional)    | `settings` table, local database | Never logged, never exported, never leaves the machine except to GitHub |
+| Code-signing certificate (future) | GitHub encrypted secret          | Tag workflow only; never exposed to fork builds                         |
 
 The application ships **no secrets at all**. The default search path is key-less specifically because an open-source
 repository cannot embed a key ([../llm/rag-sources.md](../llm/rag-sources.md)).

@@ -2,7 +2,7 @@
 title: Architecture Overview
 discipline: code
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Architecture Overview
@@ -42,7 +42,7 @@ flowchart TB
     end
 
     Ollama[Ollama · localhost:11434]
-    Web[GitHub · official docs · Wikipedia · optional Tavily/Brave]
+    Web[GitHub · official docs · Wikipedia]
 
     UI <-->|typed channels| IPC
     IPC --> DB
