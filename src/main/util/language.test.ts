@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { looksLike, sourceMentionsSkill } from './language';
+import { looksLikeEnglish, sourceMentionsSkill } from './language';
 
 /** The frozen eval sources double as fixtures — the same text the harness scores against. */
 function source(file: string): string {
@@ -50,26 +50,24 @@ describe('sourceMentionsSkill — the last line of defence for grounding', () =>
   });
 });
 
-describe('looksLike', () => {
-  const english =
-    'nginx is a reverse proxy that routes requests to the backend servers, and it handles ' +
-    'many connections with a small memory footprint.';
-  const turkish =
-    'nginx bir ters vekil sunucudur ve gelen istekleri arka uçtaki sunuculara yönlendirir, ' +
-    'bu işlemi düşük bellek kullanımı ile yapar.';
-
-  it('recognises English prose', () => {
-    expect(looksLike(english, 'en')).toBe(true);
-    expect(looksLike(english, 'tr')).toBe(false);
+describe('looksLikeEnglish', () => {
+  it('accepts a paragraph of ordinary English prose', () => {
+    expect(
+      looksLikeEnglish(
+        'nginx is a reverse proxy that sits in front of a backend service and forwards requests to it.',
+      ),
+    ).toBe(true);
   });
 
-  it('recognises Turkish prose', () => {
-    expect(looksLike(turkish, 'tr')).toBe(true);
-    expect(looksLike(turkish, 'en')).toBe(false);
+  it('rejects prose that is not English', () => {
+    expect(
+      looksLikeEnglish('nginx bir ters vekil sunucudur ve gelen istekleri arka uca yonlendirir.'),
+    ).toBe(false);
   });
 
-  it('catches the failure that matters: Turkish asked for, English delivered', () => {
-    // TD-18, measured at 33% language accuracy before this was enforced anywhere.
-    expect(looksLike(english, 'tr')).toBe(false);
+  it('rejects a fragment with no prose in it at all', () => {
+    // What this actually guards: a "card" that is a heading, a nav strip, or a stray list
+    // rather than the paragraphs the prompt asked for.
+    expect(looksLikeEnglish('nginx docs download support')).toBe(false);
   });
 });

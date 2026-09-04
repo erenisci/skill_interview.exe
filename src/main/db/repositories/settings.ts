@@ -8,7 +8,6 @@ import type { Db } from '../index';
  * produces a confusing failure, whereas unset routes to the setup screen.
  */
 export const SETTING_DEFAULTS: Readonly<Record<string, string>> = {
-  content_language: 'en',
   ollama_url: 'http://localhost:11434',
   // Counts and reminder time were TBD until M-5 needed real numbers to assemble against
   // (docs/operations/configuration.md). 3 cards + 5 questions is a deliberately light
@@ -20,6 +19,15 @@ export const SETTING_DEFAULTS: Readonly<Record<string, string>> = {
   daily_questions: '5',
   reminder_enabled: 'true',
   reminder_time: '18:00',
+  // On by default because the reminder only exists while the app does: a product whose
+  // whole promise is "a small set, every day" cannot deliver it from a process the user
+  // closed at lunchtime. The escape hatch is deliberate and two clicks away — Quit in the
+  // tray menu, and this setting itself.
+  close_to_tray: 'true',
+  // Off by default, unlike close-to-tray. Hiding a window the user closed is a small
+  // surprise they can undo in a second; adding a program to their machine's startup
+  // without being asked is not, and nothing about this product earns that.
+  launch_at_startup: 'false',
 };
 
 export class SettingsRepository {

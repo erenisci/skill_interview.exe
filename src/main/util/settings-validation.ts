@@ -63,16 +63,10 @@ export function validateSetting(key: string, rawValue: string): Result<string> {
     }
 
     case 'reminder_enabled':
+    case 'close_to_tray':
+    case 'launch_at_startup':
       if (value !== 'true' && value !== 'false') {
-        return err(
-          appError('validation', 'bad-reminder_enabled', 'reminder must be true or false'),
-        );
-      }
-      return ok(value);
-
-    case 'content_language':
-      if (value !== 'en' && value !== 'tr') {
-        return err(appError('validation', 'bad-content_language', 'language must be en or tr'));
+        return err(appError('validation', `bad-${key}`, `${key} must be true or false`));
       }
       return ok(value);
 

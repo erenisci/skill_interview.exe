@@ -1,6 +1,7 @@
-# The same source in both languages. Turkish is the risk: a model asked for Turkish will
-# happily render "reverse proxy" as "ters vekil sunucu" — correct Turkish, useless to
-# someone preparing for an interview held in the original terms.
-{"id":"nginx-en","skill":"nginx","sourceFile":"nginx.txt","language":"en","keepTerms":["nginx","HTTP"]}
-{"id":"nginx-tr","skill":"nginx","sourceFile":"nginx.txt","language":"tr","keepTerms":["nginx","HTTP"]}
-{"id":"redis-tr","skill":"Redis","sourceFile":"redis.txt","language":"tr","keepTerms":["Redis"]}
+# The product is English-only (src/shared/domain.ts), so what is measured here is no longer
+# "did it obey the requested language" but the two things that still matter: the card is
+# prose rather than a fragment, and the technical terms a reader will meet in an interview
+# survive verbatim rather than being paraphrased away.
+{"id":"nginx-en","skill":"nginx","sourceFile":"nginx.txt","keepTerms":["nginx","HTTP"]}
+{"id":"redis-en","skill":"Redis","sourceFile":"redis.txt","keepTerms":["Redis"]}
+{"id":"postgresql-en","skill":"PostgreSQL","sourceFile":"postgresql.txt","keepTerms":["PostgreSQL","SQL"]}

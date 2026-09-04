@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { LlmAdapter } from '../llm/adapter';
 import { LANGUAGE_NAMES, PRIMER_CARD, SYSTEM_PREAMBLE, render } from '../llm/prompts';
 import { structured } from '../llm/schema';
-import { looksLike, sourceMentionsSkill } from '../util/language';
+import { looksLikeEnglish, sourceMentionsSkill } from '../util/language';
 
 /**
  * Writes a primer from retrieved text, and from nothing else.
@@ -116,7 +116,7 @@ export async function synthesizePrimer(
   // ([TD-18](../../../docs/project/tech-debt.md)). A visible failure the queue retries is
   // better than a card silently in the wrong language: the user asked for Turkish and
   // would otherwise get English with no sign anything went wrong.
-  if (!looksLike(trimmed, language)) {
+  if (!looksLikeEnglish(trimmed)) {
     return err(
       appError(
         'validation',

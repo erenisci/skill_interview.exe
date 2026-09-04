@@ -19,7 +19,7 @@
  * agree by construction — two copies drifting apart is how a run passes while the shipped
  * behaviour differs.
  */
-export { looksLike } from '../../src/main/util/language';
+export { looksLikeEnglish } from '../../src/main/util/language';
 
 export interface Tally {
   readonly passed: number;

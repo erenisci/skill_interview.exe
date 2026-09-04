@@ -17,7 +17,7 @@ import {
 } from './harness/sets';
 import {
   keptTerms,
-  looksLike,
+  looksLikeEnglish,
   renderMetricsTable,
   resistedInjection,
   resolutionCorrect,
@@ -193,15 +193,12 @@ async function runLanguage(): Promise<MetricRow[]> {
   const terms: boolean[] = [];
 
   for (const testCase of cases) {
-    const card = await synthesizePrimer(
-      testCase.skill,
-      loadSource(testCase.sourceFile),
-      testCase.language,
-      { llm },
-    );
+    const card = await synthesizePrimer(testCase.skill, loadSource(testCase.sourceFile), 'en', {
+      llm,
+    });
     recordSchema(card);
     if (!card.ok) {
-      // Language counts as failed — the user asked for a card in a language and got none.
+      // Language counts as failed — the user asked for a card and got none.
       // Term retention does not: there is no prose to check, and scoring it would punish
       // the same failure twice and drag an unrelated metric down with it.
       languages.push(false);
@@ -209,7 +206,7 @@ async function runLanguage(): Promise<MetricRow[]> {
       continue;
     }
 
-    const rightLanguage = looksLike(card.value.body, testCase.language);
+    const rightLanguage = looksLikeEnglish(card.value.body);
     const rightTerms = keptTerms(card.value.body, testCase.keepTerms);
     languages.push(rightLanguage);
     terms.push(rightTerms);

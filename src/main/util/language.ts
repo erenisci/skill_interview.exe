@@ -50,23 +50,37 @@ export function sourceMentionsSkill(sourceText: string, skill: string): boolean 
   });
 }
 
-/** Latin letters unique to Turkish, and the words each language repeats regardless of topic. */
-const TURKISH_LETTERS = /[ğışçöüĞİŞÇÖÜ]/;
-const TURKISH_STOPWORDS = [' ve ', ' bir ', ' için ', ' olarak ', ' ile ', ' bu '];
-const ENGLISH_STOPWORDS = [' the ', ' and ', ' with ', ' that ', ' from ', ' this '];
+/** The words English prose repeats regardless of topic. */
+const ENGLISH_STOPWORDS = [
+  ' the ',
+  ' and ',
+  ' with ',
+  ' that ',
+  ' from ',
+  ' this ',
+  ' for ',
+  ' of ',
+  ' to ',
+  ' in ',
+  ' is ',
+  ' are ',
+  ' as ',
+  ' by ',
+];
 
 /**
- * Which language prose is in, by stopword frequency rather than by asking a model.
+ * Whether prose reads as English, by stopword frequency rather than by asking a model.
  *
- * Crude on purpose. It only has to separate two languages that are far apart, on text of at
- * least a paragraph, and being wrong is visible rather than silent: a card a human reads as
- * Turkish while this calls it English is a bug in this function, not a quiet mis-score.
+ * Crude on purpose, and only meaningful on text of at least a paragraph. It once had to
+ * separate English from Turkish; the product is English-only now
+ * ([domain.ts](../../shared/domain.ts)), so what is left is a sanity check that a card is
+ * prose in the language the prompt asked for rather than a fragment in another one.
+ *
+ * Not applied to claims. A claim is a handful of words — "handles TLS termination" contains
+ * no stopword at all — and a check that cannot tell silence from failure is worse than no
+ * check on text that short.
  */
-export function looksLike(text: string, language: 'en' | 'tr'): boolean {
+export function looksLikeEnglish(text: string): boolean {
   const padded = ` ${text.toLowerCase()} `;
-  const turkish =
-    TURKISH_STOPWORDS.filter((word) => padded.includes(word)).length +
-    (TURKISH_LETTERS.test(text) ? 2 : 0);
-  const english = ENGLISH_STOPWORDS.filter((word) => padded.includes(word)).length;
-  return language === 'tr' ? turkish > english : english > turkish;
+  return ENGLISH_STOPWORDS.some((word) => padded.includes(word));
 }

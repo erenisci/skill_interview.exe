@@ -64,17 +64,19 @@ describe('reminder_time', () => {
   });
 });
 
-describe('reminder_enabled and content_language', () => {
+describe('the boolean flags', () => {
   it('accepts the two values each allows', () => {
     expect(accepted('reminder_enabled', 'true')).toBe('true');
     expect(accepted('reminder_enabled', 'false')).toBe('false');
-    expect(accepted('content_language', 'en')).toBe('en');
-    expect(accepted('content_language', 'tr')).toBe('tr');
+    expect(accepted('close_to_tray', 'true')).toBe('true');
+    expect(accepted('close_to_tray', 'false')).toBe('false');
   });
 
   it('refuses anything else', () => {
     expect(refused('reminder_enabled', 'yes')).toBe('bad-reminder_enabled');
-    expect(refused('content_language', 'de')).toBe('bad-content_language');
+    // A flag that fails open would make the window unclosable, or the app unquittable.
+    expect(refused('close_to_tray', 'on')).toBe('bad-close_to_tray');
+    expect(refused('close_to_tray', '')).toBe('bad-close_to_tray');
   });
 });
 

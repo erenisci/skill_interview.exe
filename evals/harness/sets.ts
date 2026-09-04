@@ -61,8 +61,7 @@ export interface LanguageCase {
   readonly id: string;
   readonly skill: string;
   readonly sourceFile: string;
-  readonly language: 'en' | 'tr';
-  /** Technical terms that must survive untranslated, whatever the prose language. */
+  /** Technical terms that must survive verbatim rather than being paraphrased away. */
   readonly keepTerms: readonly string[];
 }
 
