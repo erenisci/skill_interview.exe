@@ -1,9 +1,9 @@
 import classifySkillV1 from './classify-skill.v1.md?raw';
 import comparisonCardV1 from './comparison-card.v1.md?raw';
-import contrastiveClaimsV1 from './contrastive-claims.v1.md?raw';
+import contrastiveClaimsV2 from './contrastive-claims.v2.md?raw';
 import primerCardV2 from './primer-card.v2.md?raw';
 import questionStemV1 from './question-stem.v1.md?raw';
-import resolveSourceV1 from './resolve-source.v1.md?raw';
+import resolveSourceV2 from './resolve-source.v2.md?raw';
 
 /**
  * Prompts are product code: a prompt edit changes user-visible output without changing a
@@ -15,9 +15,21 @@ export interface Prompt {
   readonly template: string;
 }
 
+/**
+ * v2 adds the half v1 was missing and makes the model judge every candidate before it
+ * decides anything.
+ *
+ * v1 listed at length what to reject and never once said what a correct answer looks like.
+ * Measured live against six programming languages, it refused all but one — including
+ * candidate sets containing `Java (programming language)`, `TypeScript` and
+ * `rust-lang/rust`. Its stated reasons were preamble rather than conclusions: the model
+ * spent the `reason` field planning how it would evaluate, then emitted `null` having
+ * evaluated nothing. The one case that reasoned candidate-by-candidate reached a
+ * defensible answer, which is what `verdicts` now forces for all of them.
+ */
 export const RESOLVE_SOURCE: Prompt = {
-  version: 'resolve-source.v1',
-  template: resolveSourceV1,
+  version: 'resolve-source.v2',
+  template: resolveSourceV2,
 };
 
 /**
@@ -48,10 +60,16 @@ export const COMPARISON_CARD: Prompt = {
  * One call per pair, both directions. It replaces the `question-claims` + `discriminate-claim`
  * pair, whose separate gate was measured leaving 1 of 28 distractors standing
  * ([ADR-0006](../../../../docs/architecture/adr/0006-pairwise-claims.md)).
+ *
+ * v2 applies the lesson [PRIMER_CARD] already learned, which v1 was written before and
+ * never had applied to it: the language requirement sat mid-prompt with two large blocks
+ * of English source material after it, and lost. On a real run every claim for four
+ * Türkçe skills came back in English. It is now stated last, in the same words that took
+ * the primer from 33% to 100%.
  */
 export const CONTRASTIVE_CLAIMS: Prompt = {
-  version: 'contrastive-claims.v1',
-  template: contrastiveClaimsV1,
+  version: 'contrastive-claims.v2',
+  template: contrastiveClaimsV2,
 };
 
 export const QUESTION_STEM: Prompt = {
@@ -59,10 +77,9 @@ export const QUESTION_STEM: Prompt = {
   template: questionStemV1,
 };
 
-/** Language names rather than codes: a model follows "Turkish" better than "tr". */
+/** A name rather than a code: a model follows "English" better than "en". */
 export const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
   en: 'English',
-  tr: 'Turkish',
 };
 
 /** Fills `{{NAME}}` placeholders. Values are data; nothing in them is re-scanned. */

@@ -31,22 +31,48 @@ const MIN_STEM = 3;
 const MIN_OVERLAP_RATIO = 0.5;
 
 /**
+ * Wikipedia disambiguates by appending a qualifier — `Java (programming language)`,
+ * `Python (programming language)`, `Go (programming language)`. It is metadata about the
+ * title, not part of the name, and leaving it in defeats the ratio below: `java` against
+ * `javaprogramminglanguage` scores 0.17 and is rejected, while `Java` — the Indonesian
+ * island — is a perfect match and sails through.
+ *
+ * Measured live against Wikipedia (2026-09-04), the gate discarded the right article and
+ * forwarded the wrong one for every language whose article is disambiguated: Java, Python,
+ * C, Go, Rust. That is the failure ADR-0003 exists to prevent, arriving through the gate
+ * meant to prevent it, on the most common CV skills there are.
+ *
+ * Both `Java` articles pass once the qualifier is stripped, which is correct: choosing
+ * between the island and the language is exactly the judgement gate 2 is for.
+ */
+function withoutQualifier(identity: string): string {
+  return identity.replace(/\s*\([^()]*\)\s*$/, '');
+}
+
+/**
  * Gate 1 — deterministic and free.
  *
  * A prefix relationship is enough (`traefik` against `traefikproxy`, `expressjs` against
  * `expressjscom`), but only when the shorter name is at least half the longer one.
  * Without the ratio, a short skill would match anything starting with those letters.
+ *
+ * The identity is tried both as given and with a trailing qualifier stripped, so a
+ * disambiguated title is judged on its name rather than on Wikipedia's bookkeeping.
  */
 export function nameMatches(skill: string, identity: string): boolean {
   const a = normalize(skill);
-  const b = normalize(identity);
-  if (a.length === 0 || b.length === 0) return false;
-  if (a === b) return true;
+  if (a.length === 0) return false;
 
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  if (shorter.length < MIN_STEM) return false;
-  if (!longer.startsWith(shorter)) return false;
-  return shorter.length / longer.length >= MIN_OVERLAP_RATIO;
+  return [identity, withoutQualifier(identity)].some((form) => {
+    const b = normalize(form);
+    if (b.length === 0) return false;
+    if (a === b) return true;
+
+    const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+    if (shorter.length < MIN_STEM) return false;
+    if (!longer.startsWith(shorter)) return false;
+    return shorter.length / longer.length >= MIN_OVERLAP_RATIO;
+  });
 }
 
 export function applyNameGate(
@@ -69,10 +95,22 @@ export function applyNameGate(
  * `reason` first, and both refusal cases went from wrong to right. Justifying before
  * committing is the whole difference, and it costs nothing
  * ([ADR-0002](../../../docs/architecture/adr/0002-constrained-decoding.md), correction).
+ *
+ * **`verdicts` comes before both, for the same reason one step further out.** Reasoning
+ * before committing was not enough on its own: measured live against six programming
+ * languages, the model spent `reason` describing how it *would* evaluate the candidates —
+ * "I need to be strict about what counts as the technology itself" — and then emitted
+ * `null` having evaluated none of them. It refused candidate sets containing
+ * `Java (programming language)`, `TypeScript` and `rust-lang/rust`.
+ *
+ * The one case that enumerated candidates one by one reached a correct, defensible answer.
+ * So the enumeration is now a field: one verdict per candidate, before any conclusion.
+ * A free-text field invites preamble; an array of the same length as the input does not.
  */
 const ResolutionSchema = structured(
   'resolve-source',
   z.object({
+    verdicts: z.array(z.string()),
     reason: z.string(),
     index: z.number().int().nullable(),
   }),

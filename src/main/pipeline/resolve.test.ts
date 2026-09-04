@@ -66,6 +66,34 @@ describe('nameMatches — gate 1', () => {
     expect(nameMatches('', 'nginx')).toBe(false);
     expect(nameMatches('nginx', '???')).toBe(false);
   });
+
+  it("sees past Wikipedia's disambiguating qualifier", () => {
+    // Found live: Java, Python and Typescript all failed research because of this. The
+    // qualifier is bookkeeping about the title, not part of the name, and counting it
+    // scored `java` against `javaprogramminglanguage` at 0.17 — rejected — while the
+    // Indonesian island matched perfectly and went through in its place.
+    expect(nameMatches('Java', 'Java (programming language)')).toBe(true);
+    expect(nameMatches('Python', 'Python (programming language)')).toBe(true);
+    expect(nameMatches('C', 'C (programming language)')).toBe(true);
+    expect(nameMatches('Go', 'Go (programming language)')).toBe(true);
+    expect(nameMatches('Rust', 'Rust (programming language)')).toBe(true);
+  });
+
+  it('lets both disambiguated articles through, because choosing is gate 2s job', () => {
+    // The island and the language now arrive together, which is the point: gate 1 is not
+    // allowed to decide this, and previously it did — in favour of the island.
+    expect(nameMatches('Java', 'Java')).toBe(true);
+    expect(nameMatches('Java', 'Java (programming language)')).toBe(true);
+    expect(nameMatches('Java', 'Java (software platform)')).toBe(true);
+  });
+
+  it('does not let the qualifier smuggle a different technology through', () => {
+    // Stripping must not weaken the rejections the ratio was calibrated for.
+    expect(nameMatches('Vitest', 'Playwright (software)')).toBe(false);
+    expect(nameMatches('Java', 'JavaScript (programming language)')).toBe(false);
+    expect(nameMatches('Go', 'Google (company)')).toBe(false);
+    expect(nameMatches('React', 'React Native (framework)')).toBe(false);
+  });
 });
 
 describe('applyNameGate', () => {
@@ -81,7 +109,7 @@ describe('applyNameGate', () => {
 
 describe('resolveSource — both gates', () => {
   const llmChoosing = (index: number | null, reason = 'because') =>
-    new StubLlmAdapter([{ index, reason }]);
+    new StubLlmAdapter([{ verdicts: ['a verdict'], reason, index }]);
 
   it('resolves to the candidate the model picks', async () => {
     const candidates = [candidate('Tauri', { lead: 'An ancient people of Crimea.' })];
@@ -90,7 +118,7 @@ describe('resolveSource — both gates', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.candidate.identity).toBe('Tauri');
-      expect(result.value.promptVersion).toBe('resolve-source.v1');
+      expect(result.value.promptVersion).toBe('resolve-source.v2');
       expect(result.value.model).toBe('stub');
     }
   });
