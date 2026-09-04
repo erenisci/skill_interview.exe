@@ -226,6 +226,61 @@ function neighbourSkills(deps: QuestionsDeps, skillId: number): readonly Skill[]
  * One call rather than two: separating A from B and B from A is the same judgement, and
  * asking twice invites the model to contradict itself.
  */
+/** What one contrastive call produced, already cleaned but not yet stored. */
+export interface PairClaims {
+  readonly aClaims: readonly string[];
+  readonly bClaims: readonly string[];
+  readonly model: string;
+}
+
+/**
+ * Asks the model to separate two technologies, and cleans what comes back.
+ *
+ * Separate from storing it so the eval harness can measure this exact step against frozen
+ * material — the alternative is the harness re-implementing the prompt call, which is how
+ * an eval quietly stops measuring what actually ships
+ * ([eval-harness.md](../../../docs/llm/eval-harness.md)).
+ */
+export async function generatePairClaims(
+  llm: LlmAdapter,
+  a: { readonly name: string; readonly material: string },
+  b: { readonly name: string; readonly material: string },
+  language: ContentLanguage,
+): Promise<Result<PairClaims>> {
+  const generation = await llm.generate({
+    system: SYSTEM_PREAMBLE,
+    prompt: render(CONTRASTIVE_CLAIMS, {
+      SKILL_A: a.name,
+      MATERIAL_A: truncate(a.material, MAX_MATERIAL_CHARS),
+      SKILL_B: b.name,
+      MATERIAL_B: truncate(b.material, MAX_MATERIAL_CHARS),
+      LANGUAGE: languageName(language),
+    }),
+    schema: ContrastiveSchema,
+  });
+  if (!generation.ok) return generation;
+
+  const names = [a.name, b.name];
+
+  // A claim naming either technology is unusable as an option, so it is dropped here
+  // rather than surviving to be caught by the validator a stage later.
+  //
+  // A name used as the sentence's subject is stripped rather than dropped: measured, that
+  // form is the commonest way a correct claim becomes unusable, and it is a prefix rather
+  // than a flaw in the content. A name left anywhere else still costs the claim.
+  const clean = (texts: readonly string[]): readonly string[] =>
+    texts
+      .map((text) => stripLeadingSubject(text, names))
+      .filter((text) => text.length > 0)
+      .filter((text) => !names.some((name) => mentions(text, name)));
+
+  return ok({
+    aClaims: clean(generation.value.value.aClaims),
+    bClaims: clean(generation.value.value.bClaims),
+    model: generation.value.model,
+  });
+}
+
 async function ensurePairClaims(
   skill: Skill,
   primer: Card,
@@ -242,43 +297,25 @@ async function ensurePairClaims(
     );
   }
 
-  const generation = await deps.llm.generate({
-    system: SYSTEM_PREAMBLE,
-    prompt: render(CONTRASTIVE_CLAIMS, {
-      SKILL_A: skill.name,
-      MATERIAL_A: truncate(primer.bodyMd, MAX_MATERIAL_CHARS),
-      SKILL_B: neighbour.name,
-      MATERIAL_B: truncate(neighbourPrimer.bodyMd, MAX_MATERIAL_CHARS),
-      LANGUAGE: languageName(skill.contentLang),
-    }),
-    schema: ContrastiveSchema,
-  });
-  if (!generation.ok) return generation;
+  const generated = await generatePairClaims(
+    deps.llm,
+    { name: skill.name, material: primer.bodyMd },
+    { name: neighbour.name, material: neighbourPrimer.bodyMd },
+    skill.contentLang,
+  );
+  if (!generated.ok) return generated;
 
   const createdAt = now().toISOString();
-  const names = [skill.name, neighbour.name];
-
-  // A claim naming either technology is unusable as an option, so it is dropped here
-  // rather than surviving to be caught by the validator a stage later.
-  //
-  // A name used as the sentence's subject is stripped rather than dropped: measured, that
-  // form is the commonest way a correct claim becomes unusable, and it is a prefix rather
-  // than a flaw in the content. A name left anywhere else still costs the claim.
-  const clean = (texts: readonly string[]): readonly string[] =>
-    texts
-      .map((text) => stripLeadingSubject(text, names))
-      .filter((text) => text.length > 0)
-      .filter((text) => !names.some((name) => mentions(text, name)));
 
   deps.questions.replaceClaimsForPair(
     skill.id,
     neighbour.id,
-    clean(generation.value.value.aClaims).map((text) => ({
+    generated.value.aClaims.map((text) => ({
       skillId: skill.id,
       contrastSkillId: neighbour.id,
       cardId: primer.id,
       text,
-      model: generation.value.model,
+      model: generated.value.model,
       promptVersion: CONTRASTIVE_CLAIMS.version,
       createdAt,
     })),
@@ -286,12 +323,12 @@ async function ensurePairClaims(
   deps.questions.replaceClaimsForPair(
     neighbour.id,
     skill.id,
-    clean(generation.value.value.bClaims).map((text) => ({
+    generated.value.bClaims.map((text) => ({
       skillId: neighbour.id,
       contrastSkillId: skill.id,
       cardId: neighbourPrimer.id,
       text,
-      model: generation.value.model,
+      model: generated.value.model,
       promptVersion: CONTRASTIVE_CLAIMS.version,
       createdAt,
     })),
