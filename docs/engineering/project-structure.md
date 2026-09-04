@@ -41,10 +41,10 @@ skill_interview.exe/
 │   │   ├── scheduler/         # FSRS (via ts-fsrs) + daily-set assembly + the orchestrating service
 │   │   │                      #   fsrs.ts is the only file that knows ts-fsrs exists
 │   │   ├── notify/            # the reminder: reminder.ts is pure, index.ts owns the one Notification call
-│   │   └── export/            # (M-6) favourites → Markdown
+│   │   └── export/            # favourites → Markdown; markdown.ts is pure, favorites.ts hydrates
 │   ├── renderer/              # React UI — no DB, no network, no Node
 │   │   ├── App.tsx
-│   │   ├── views/             # setup · skills · questions · daily set (favourites, settings later)
+│   │   ├── views/             # setup · skills · questions · daily set · favourites (settings later)
 │   │   └── styles/
 │   ├── preload/               # contextBridge surface, nothing else
 │   └── shared/                # types crossing the IPC boundary; no runtime deps

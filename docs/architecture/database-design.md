@@ -198,6 +198,13 @@ conditional foreign key.
 
 `favorites(id, item_type, item_id, note, created_at)` — survives deletion of its skill, with a marker.
 
+That survival is why it holds no foreign key, like `reviews` and `daily_set_items` before it. Deleting a skill
+cascades its cards and questions away; the favourite row stays behind as a tombstone, and hydration is what
+discovers the content is gone (`src/main/export/favorites.ts`). The favourites list and the Markdown export both
+show it as kept-but-empty rather than dropping it, because the user asked to keep it and quietly removing it would
+be the app overruling that. `note` is `NULL` when unset — a blank note is never stored as an empty string, so
+"has a note" is one check rather than two.
+
 `jobs(id, kind, payload, status, attempts, error, retry_at, created_at, updated_at)` — the durable queue. `status`
 is `pending` · `running` · `done` · `failed`; rows left `running` by an abrupt shutdown are reset at startup.
 

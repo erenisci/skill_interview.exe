@@ -81,13 +81,26 @@ exists in the repository yet, and inventing a placeholder felt worse than the ho
 ([TD-16](project/tech-debt.md)). `daily_cards`, `daily_questions` and `reminder_time` — TBD since M-2 — now have real
 defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
 
+**M-6 is built.** Any card or question in the daily set can be starred, given a note, and the lot exported as one
+Markdown file grouped by skill, with every source preserved as a followable link rather than an id.
+
+Both edge cases the spec names are real behaviour, not aspiration. A favourite whose skill is later deleted survives
+the cascade that takes its card away — the row holds no foreign key precisely so it can — and shows up as a
+tombstone in the list and under "No longer tracked" in the export, with the user's note intact. An export with
+nothing kept is refused rather than writing a file with a heading and nothing under it.
+
+The renderer is a pure function asserted character for character; hydration is shared by the list and the export, so
+what is read on screen and what lands in the file cannot drift. Only the save dialog and the file write touch
+Electron.
+
 ## In Progress
 
-- **Neither M-4 nor M-5 has been read end to end in the app yet.** Both are built and covered by tests against
-  stubs or a temp database; neither has been watched running against a real model with real skills. M-4: do the
+- **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests
+  against stubs or a temp database; none has been watched running against a real model with real skills. M-4: do the
   claims read as specific and the distractors as plausible. M-5: does a real daily set, on screen, feel like a
-  reason to open the app tomorrow. 252 tests pass either way — they cover assembly, scheduling, the reminder's
-  timing logic, and the transactional answer path, but none of them can answer either question.
+  reason to open the app tomorrow. M-6: does the exported Markdown read well in an editor. 288 tests pass either
+  way — they cover assembly, scheduling, the reminder's timing logic, the transactional answer path and the export
+  renderer, but none of them can answer any of those three questions.
 
 ## Done (recent)
 
@@ -122,6 +135,8 @@ defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
 | 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                     |
 | 2026-09-03 | Found while trying to test M-4/M-5 live: no way existed to select an Ollama model without restarting the app               |
 | 2026-09-03 | `SwappableLlmAdapter` — selecting a model in setup swaps the live adapter in place; pulled forward out of M-8's scope      |
+| 2026-09-03 | M-6: favourites with notes, kept as tombstones when their skill is deleted                                                 |
+| 2026-09-03 | M-6: Markdown export grouped by skill — pure renderer, refuses to write an empty file                                      |
 
 ## Blocked
 
@@ -131,8 +146,8 @@ defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
 
 1. Add a few related skills in the app and read both the day's questions (M-4) and the daily set (M-5) end to end —
    the check a probe or a stubbed test cannot make for either
-2. M-6 — favourites with notes, Markdown export
-3. M-7 — eval harness, and the backlog it exists to settle: TD-11 through TD-14 plus the model-dependence question
+2. M-7 — eval harness, and the backlog it exists to settle: TD-11 through TD-14 plus the model-dependence question
+3. M-8 — settings UI (language, counts, reminder, key), Windows installer, README and licence
 
 ## Open Decisions
 

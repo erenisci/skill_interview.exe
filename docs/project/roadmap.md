@@ -101,7 +101,12 @@ persistent tray icon ([TD-16](tech-debt.md)). What tests cannot cover: reading a
 **Scope.** Favourites with notes; Markdown export grouped by skill with sources preserved.
 **Depends on.** M-5.
 **Exit criteria.** A favourited card and question export to readable Markdown with working source links.
-**Status.** Not started.
+**Status.** Built, awaiting a live run. The exit criterion is covered by an integration test that favourites a real
+card and question and asserts the rendered Markdown carries their sources as links
+(`src/main/export/favorites.test.ts`). The renderer is pure and asserted character for character; only the save
+dialog and the file write touch Electron. Both edge cases in the spec are implemented: a favourite whose skill was
+deleted is kept as a tombstone rather than dropped, and an export with nothing kept is refused instead of writing an
+empty file.
 
 ### M-7 — Eval harness
 
