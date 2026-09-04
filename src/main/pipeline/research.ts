@@ -9,7 +9,7 @@ import type { JobHandler } from '../queue/queue';
 import type { SearchAdapter } from '../search/adapter';
 import { truncate } from '../search/extract';
 import { log } from '../util/logger';
-import { classifySkill } from './classify';
+import { classifySkill, type Category } from './classify';
 import { earnsComparison, relationsFor, type Relation } from './relate';
 import { resolveSource } from './resolve';
 import { synthesizePrimer } from './synthesize';
@@ -91,6 +91,16 @@ export function createResearchHandler(deps: ResearchDeps): JobHandler {
     const fetchedAt = now().toISOString();
     const source = resolved.value.candidate;
 
+    // The check at the top is not enough. Everything above — two model calls and two
+    // network round trips — takes ten seconds or more, and a user who removes a skill in
+    // that window leaves this row pointing at nothing. Writing anyway raised a raw
+    // `FOREIGN KEY constraint failed` into the job log, which reads as a corrupt database
+    // rather than as what it is: a deletion that arrived while work was in flight.
+    if (!deps.skills.findById(skill.id)) {
+      log.info('pipeline', 'skill deleted while research ran', { skillId: skill.id });
+      return ok(undefined);
+    }
+
     deps.cards.insertWithSources(
       {
         skillId: skill.id,
@@ -128,30 +138,24 @@ export function createResearchHandler(deps: ResearchDeps): JobHandler {
     let relationCount = 0;
 
     if (classification.ok) {
-      deps.skills.setClassification(
-        skill.id,
-        classification.value.category,
-        classification.value.tags,
-      );
-
-      const relations = relationsFor(
-        { id: skill.id, category: classification.value.category, tags: classification.value.tags },
-        deps.relations.classifiedSkills(skill.id),
-      );
-      deps.relations.replaceFor(skill.id, relations);
-      enqueueComparisons(deps, relations, fetchedAt);
-      relationCount = relations.length;
+      relationCount = applyClassification(deps, skill.id, classification.value, fetchedAt);
     } else {
-      log.warn('pipeline', 'skill left unclassified, card kept', {
+      // Not allowed to fail the job — the card is written and throwing it away over a
+      // classification would be wildly disproportionate. But leaving it there is what
+      // stranded a skill permanently: nothing ever tried again, so it had no neighbours,
+      // no comparison cards, and the worst possible distractor pool, for as long as it
+      // existed. A retry job puts it back in the queue's hands, with backoff and a limit.
+      log.warn('pipeline', 'skill left unclassified, retry queued', {
         skillId: skill.id,
         code: classification.error.code,
       });
+      deps.jobs.enqueueUnique('classify', { skillId: skill.id }, fetchedAt);
     }
 
     // Questions are enqueued whether or not the skill was classified. An unclassified
     // skill has no neighbours to borrow distractors from yet, and the handler treats that
     // as "come back later" rather than as a failure.
-    deps.jobs.enqueue('generate-questions', { skillId: skill.id }, fetchedAt);
+    deps.jobs.enqueueUnique('generate-questions', { skillId: skill.id }, fetchedAt);
 
     deps.skills.setStatus(skill.id, 'ready');
     log.info('pipeline', 'primer written', {
@@ -165,14 +169,98 @@ export function createResearchHandler(deps: ResearchDeps): JobHandler {
 }
 
 /**
+ * Stores a classification and everything that follows from it — the graph edges it creates
+ * and the comparison cards those earn. Returns how many relations were written.
+ *
+ * Shared by research and by the retry job so the two cannot drift: a skill classified on
+ * the second attempt must end up in exactly the state it would have reached on the first.
+ */
+export function applyClassification(
+  deps: Pick<ResearchDeps, 'skills' | 'relations' | 'jobs'>,
+  skillId: number,
+  classification: { category: Category; tags: readonly string[] },
+  now: string,
+): number {
+  deps.skills.setClassification(skillId, classification.category, classification.tags);
+
+  const relations = relationsFor(
+    { id: skillId, category: classification.category, tags: classification.tags },
+    deps.relations.classifiedSkills(skillId),
+  );
+  deps.relations.replaceFor(skillId, relations);
+  enqueueComparisons(deps, relations, now);
+  return relations.length;
+}
+
+/**
+ * Retries a classification that failed during research.
+ *
+ * A separate job rather than an inline retry: the queue already owns backoff, an attempt
+ * limit and resumption after a crash, and a model that just failed to classify is unlikely
+ * to succeed a second later. Failing returns an error on purpose so that machinery runs —
+ * unlike inside research, where the card must survive.
+ */
+export function createClassifyHandler(
+  deps: Pick<ResearchDeps, 'skills' | 'cards' | 'relations' | 'jobs' | 'llm'> & {
+    readonly now?: () => Date;
+  },
+): JobHandler {
+  const now = deps.now ?? (() => new Date());
+
+  return async (job: Job): Promise<Result<void>> => {
+    let payload: ResearchPayload;
+    try {
+      payload = JSON.parse(job.payload) as ResearchPayload;
+    } catch {
+      return err(appError('internal', 'bad-payload', `job ${job.id} has unparseable payload`));
+    }
+
+    const skill = deps.skills.findById(payload.skillId);
+    if (!skill) return ok(undefined);
+    if (skill.category !== null) {
+      // Something else classified it in the meantime — research re-run, or an earlier copy
+      // of this job. Nothing to do, and not a failure.
+      return ok(undefined);
+    }
+
+    const primer = deps.cards.listBySkill(skill.id).find((card) => card.type === 'primer');
+    if (!primer) {
+      return err(
+        appError('validation', 'no-primer', `skill ${skill.id} has no material to classify from`),
+      );
+    }
+
+    const classification = await classifySkill(skill.name, primer.bodyMd, { llm: deps.llm });
+    if (!classification.ok) return classification;
+
+    const relations = applyClassification(
+      deps,
+      skill.id,
+      classification.value,
+      now().toISOString(),
+    );
+    log.info('pipeline', 'skill classified on retry', { skillId: skill.id, relations });
+    return ok(undefined);
+  };
+}
+
+/**
  * A weak relation is a neighbour, not a card. Without the strength gate a category with
  * many members would generate comparisons combinatorially, most of them saying nothing
  * ([system-design.md](../../../docs/architecture/system-design.md)).
  */
-function enqueueComparisons(deps: ResearchDeps, relations: readonly Relation[], now: string): void {
+function enqueueComparisons(
+  deps: Pick<ResearchDeps, 'jobs'>,
+  relations: readonly Relation[],
+  now: string,
+): void {
   for (const relation of relations) {
     if (!earnsComparison(relation)) continue;
-    deps.jobs.enqueue('compare', { skillAId: relation.skillAId, skillBId: relation.skillBId }, now);
+    deps.jobs.enqueueUnique(
+      'compare',
+      { skillAId: relation.skillAId, skillBId: relation.skillBId },
+      now,
+    );
   }
 }
 

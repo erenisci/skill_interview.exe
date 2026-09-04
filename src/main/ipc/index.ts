@@ -46,7 +46,17 @@ const EXPECTED_REASONS: Readonly<Record<FeedbackTarget, readonly FeedbackReason[
   explanation: EXPLANATION_REASONS,
 };
 
-export function registerIpc(ctx: AppContext, appVersion: string): void {
+/**
+ * Side effects the main process owns and this layer only triggers.
+ *
+ * Passed in rather than imported so the boundary holds: `ipc/` routes and validates, and
+ * knows nothing about Electron's login items ([project-structure.md](../../../docs/engineering/project-structure.md)).
+ */
+export interface IpcEffects {
+  readonly setLaunchAtStartup: (enabled: boolean) => void;
+}
+
+export function registerIpc(ctx: AppContext, appVersion: string, effects: IpcEffects): void {
   handle(CHANNELS.systemStatus, ctx, async () =>
     ok({
       appVersion,
@@ -108,6 +118,29 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
     return ok(related);
   });
 
+  // Why a skill's badge says "failed". The reason is often actionable — "none of the
+  // candidates is about Java" means the name needs to be more specific — and a red badge
+  // with nothing behind it reads as a broken app instead.
+  handle(CHANNELS.skillsFailure, ctx, (skillId) => ok(ctx.jobs.lastFailureFor(skillId)));
+
+  // A blank field means "no cap of its own"; 0 is a real value meaning "not today", which
+  // parks a skill without deleting it and losing its review history.
+  handle(CHANNELS.skillsLimits, ctx, (request) => {
+    for (const value of [request.cards, request.questions]) {
+      if (value !== null && (!Number.isInteger(value) || value < 0)) {
+        return err(
+          appError('validation', 'bad-limit', 'a per-skill limit must be a whole number or blank'),
+        );
+      }
+    }
+    if (!ctx.skills.setDailyLimits(request.skillId, request.cards, request.questions)) {
+      return err(appError('validation', 'unknown-skill', `no skill with id ${request.skillId}`));
+    }
+    const skill = ctx.skills.findById(request.skillId);
+    if (!skill) return err(appError('internal', 'skill-vanished', 'skill disappeared mid-update'));
+    return ok(skill);
+  });
+
   handle(CHANNELS.cardsForSkill, ctx, (skillId) =>
     ok(
       ctx.cards.listBySkill(skillId).map((card) => ({
@@ -121,7 +154,8 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
     if (!ctx.skills.remove(id)) {
       return err(appError('validation', 'unknown-skill', `no skill with id ${id}`));
     }
-    log.info('ipc', 'skill removed', { skillId: id });
+    const dropped = ctx.jobs.deleteForSkill(id);
+    log.info('ipc', 'skill removed', { skillId: id, jobsDropped: dropped });
     return ok(undefined);
   });
 
@@ -249,6 +283,12 @@ export function registerIpc(ctx: AppContext, appVersion: string): void {
     if (key === 'ollama_model' || key === 'ollama_url') {
       await applyLlmSettings(ctx);
       log.info('ipc', 'llm adapter reloaded', { key });
+    }
+    // Applied now rather than at the next launch: a setting that only takes effect after a
+    // restart is one the user cannot tell they have actually changed.
+    if (key === 'launch_at_startup') {
+      effects.setLaunchAtStartup(checked.value === 'true');
+      log.info('ipc', 'launch at startup updated', { enabled: checked.value });
     }
     return ok(undefined);
   });

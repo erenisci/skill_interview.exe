@@ -10,7 +10,11 @@ import { RelationsRepository } from '../db/repositories/relations';
 import { SkillsRepository } from '../db/repositories/skills';
 import { StubLlmAdapter } from '../llm/stub';
 import type { Candidate, SearchAdapter } from '../search/adapter';
-import { createResearchFailureHandler, createResearchHandler } from './research';
+import {
+  createResearchFailureHandler,
+  createResearchHandler,
+  createClassifyHandler,
+} from './research';
 
 let db: Db;
 let skills: SkillsRepository;
@@ -59,10 +63,38 @@ function searchStub(overrides: Partial<SearchAdapter> = {}): SearchAdapter {
 /** Three model calls per research job: resolve the source, write the primer, classify. */
 function llmStub(resolveIndex: number | null = 0, body = LONG_BODY) {
   return new StubLlmAdapter([
-    { index: resolveIndex, reason: 'it is the project itself' },
+    { verdicts: ['the project itself'], reason: 'it is the project itself', index: resolveIndex },
     { title: 'nginx', body },
     { category: 'web-server', tags: ['reverse-proxy', 'load-balancer'], confidence: 'high' },
   ]);
+}
+
+/** A stored primer, for handlers that read material rather than fetch it. */
+function addPrimerFor(skillId: number): void {
+  cards.insertWithSources(
+    {
+      skillId,
+      type: 'primer',
+      title: 'nginx',
+      bodyMd: LONG_BODY,
+      contentLang: 'en',
+      model: 'stub',
+      promptVersion: 'primer-card.v2',
+      createdAt: NOW,
+    },
+    // A card with no source is refused outright — provenance is the product's first rule.
+    [
+      {
+        skillId,
+        url: 'https://example.test/nginx',
+        title: 'nginx',
+        publisher: 'Example',
+        license: null,
+        fetchedAt: NOW,
+        excerpt: 'reverse proxy',
+      },
+    ],
+  );
 }
 
 function jobFor(skillId: number): Job {
@@ -246,6 +278,33 @@ describe('research handler — edge cases', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('succeeds quietly when the skill is deleted mid-job, rather than raising a foreign key error', async () => {
+    // Found live: research takes ten seconds or more, and a skill removed inside that
+    // window left `FOREIGN KEY constraint failed` in the job log — which reads as a
+    // corrupt database rather than as a deletion that arrived while work was in flight.
+    const skill = addSkill();
+    const job = jobFor(skill.id);
+
+    const handler = createResearchHandler({
+      skills,
+      cards,
+      relations,
+      jobs,
+      search: searchStub({
+        // The last await before the write, so the deletion lands exactly in the window.
+        fetchText: async () => {
+          skills.remove(skill.id);
+          return ok('nginx is a reverse proxy. '.repeat(40));
+        },
+      }),
+      llm: llmStub(),
+    });
+
+    const result = await handler(job);
+    expect(result.ok).toBe(true);
+    expect(cards.listBySkill(skill.id)).toHaveLength(0);
+  });
+
   it('fails a job whose payload cannot be read', async () => {
     const handler = createResearchHandler({
       skills,
@@ -380,7 +439,7 @@ describe('research handler — the skill graph', () => {
     const traefik = addSkill('Traefik');
     await handlerFor(
       new StubLlmAdapter([
-        { index: 0, reason: 'the project itself' },
+        { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'Traefik', body: LONG_BODY },
         { category: 'web-server', tags: ['reverse-proxy', 'load-balancer'], confidence: 'high' },
       ]),
@@ -398,7 +457,7 @@ describe('research handler — the skill graph', () => {
     const postgres = addSkill('PostgreSQL');
     await handlerFor(
       new StubLlmAdapter([
-        { index: 0, reason: 'the project itself' },
+        { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'PostgreSQL', body: LONG_BODY },
         { category: 'database', tags: ['sql', 'relational'], confidence: 'high' },
       ]),
@@ -414,7 +473,7 @@ describe('research handler — the skill graph', () => {
     const apache = addSkill('Apache');
     await handlerFor(
       new StubLlmAdapter([
-        { index: 0, reason: 'the project itself' },
+        { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'Apache', body: LONG_BODY },
         // Same category, no shared tags — related, but nothing worth comparing.
         { category: 'web-server', tags: ['static-files', 'cgi'], confidence: 'high' },
@@ -429,7 +488,7 @@ describe('research handler — the skill graph', () => {
     const skill = addSkill();
     const result = await handlerFor(
       new StubLlmAdapter([
-        { index: 0, reason: 'the project itself' },
+        { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'nginx', body: LONG_BODY },
         // Tags this generic separate nothing, so classification refuses them.
         { category: 'web-server', tags: ['software', 'tool'], confidence: 'low' },
@@ -452,12 +511,90 @@ describe('research handler — the skill graph', () => {
     const mystery = addSkill('Mystery');
     await handlerFor(
       new StubLlmAdapter([
-        { index: 0, reason: 'the project itself' },
+        { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
         { title: 'Mystery', body: LONG_BODY },
         { category: 'web-server', tags: ['tool'], confidence: 'low' },
       ]),
     )(jobFor(mystery.id));
 
     expect(relations.exists(nginx.id, mystery.id)).toBe(false);
+  });
+});
+
+describe('classification retry — a skill must not be stranded unclassified', () => {
+  const failsToClassify = () =>
+    new StubLlmAdapter([
+      { verdicts: ['the project itself'], reason: 'the project itself', index: 0 },
+      { title: 'nginx', body: LONG_BODY },
+      // Tags this generic separate nothing, so classification refuses them.
+      { category: 'web-server', tags: ['software', 'tool'], confidence: 'low' },
+    ]);
+
+  function classifyHandler(adapter: StubLlmAdapter) {
+    return createClassifyHandler({ skills, cards, relations, jobs, llm: adapter });
+  }
+
+  it('queues a retry when research cannot classify', async () => {
+    const skill = addSkill();
+    await createResearchHandler({
+      skills,
+      cards,
+      relations,
+      jobs,
+      search: searchStub(),
+      llm: failsToClassify(),
+    })(jobFor(skill.id));
+
+    const queued = db
+      .prepare("SELECT payload FROM jobs WHERE kind = 'classify' AND status = 'pending'")
+      .all() as { payload: string }[];
+    expect(queued.map((row) => row.payload)).toContain(JSON.stringify({ skillId: skill.id }));
+  });
+
+  it('classifies on the retry and builds the graph it should have had', async () => {
+    const skill = addSkill();
+    addPrimerFor(skill.id);
+    const neighbour = addSkill('Traefik');
+    skills.setClassification(neighbour.id, 'web-server', ['reverse-proxy', 'load-balancer']);
+
+    const result = await classifyHandler(
+      new StubLlmAdapter([
+        { category: 'web-server', tags: ['reverse-proxy', 'load-balancer'], confidence: 'high' },
+      ]),
+    )(jobs.enqueue('classify', { skillId: skill.id }, NOW));
+
+    expect(result.ok).toBe(true);
+    expect(skills.findById(skill.id)?.category).toBe('web-server');
+    expect(relations.listFor(skill.id).length).toBeGreaterThan(0);
+  });
+
+  it('fails so the queue retries it, rather than swallowing a second failure', async () => {
+    // Unlike inside research, where the card must survive, there is nothing here to
+    // protect — so backoff and the attempt limit are allowed to do their job.
+    const skill = addSkill();
+    addPrimerFor(skill.id);
+
+    const result = await classifyHandler(
+      new StubLlmAdapter([{ category: 'web-server', tags: ['software'], confidence: 'low' }]),
+    )(jobs.enqueue('classify', { skillId: skill.id }, NOW));
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('does nothing when something else classified it first', async () => {
+    const skill = addSkill();
+    addPrimerFor(skill.id);
+    skills.setClassification(skill.id, 'web-server', ['reverse-proxy', 'load-balancer']);
+
+    const llm = new StubLlmAdapter(); // any call would fail as "stub-exhausted"
+    const result = await classifyHandler(llm)(jobs.enqueue('classify', { skillId: skill.id }, NOW));
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('succeeds quietly when the skill is gone', async () => {
+    const llm = new StubLlmAdapter();
+    const result = await classifyHandler(llm)(jobs.enqueue('classify', { skillId: 404 }, NOW));
+    expect(result.ok).toBe(true);
   });
 });

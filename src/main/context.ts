@@ -15,7 +15,11 @@ import { StubLlmAdapter } from './llm/stub';
 import { SwappableLlmAdapter } from './llm/swappable';
 import { createCompareHandler } from './pipeline/compare';
 import { createQuestionsHandler } from './pipeline/questions';
-import { createResearchFailureHandler, createResearchHandler } from './pipeline/research';
+import {
+  createClassifyHandler,
+  createResearchFailureHandler,
+  createResearchHandler,
+} from './pipeline/research';
 import { JobQueue, type JobHandler } from './queue/queue';
 import {
   CompositeSearchAdapter,
@@ -70,6 +74,7 @@ export function createContext(userDataDir: string): AppContext {
 
   const handlers = new Map<JobKind, JobHandler>([
     ['research', createResearchHandler({ skills, cards, relations, jobs, search, llm })],
+    ['classify', createClassifyHandler({ skills, cards, relations, jobs, llm })],
     ['compare', createCompareHandler({ skills, cards, llm })],
     [
       'generate-questions',
