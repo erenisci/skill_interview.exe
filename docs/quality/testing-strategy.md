@@ -2,7 +2,7 @@
 title: Testing Strategy
 discipline: quality
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Testing Strategy
@@ -31,13 +31,18 @@ and text extraction are pure functions over explicit inputs ([../engineering/cod
 | --------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Unit**        | Most                  | Validators, FSRS scheduling, relation computation, text extraction, distractor assembly, slug normalization, migrations                |
 | **Integration** | Some                  | Pipeline stages against a temp SQLite file with a stubbed `LlmAdapter` and `SearchAdapter`; queue crash-and-resume; repository queries |
-| **End-to-end**  | Few                   | Add a skill → card appears → question generated → answer recorded, driven through IPC with stubbed adapters                            |
+| **End-to-end**  | Few — **none yet**    | Add a skill → card appears → question generated → answer recorded, driven through IPC with stubbed adapters                            |
 | **Manual**      | Per release           | The clean-VM install, the upgrade over real data, and the feel of the UI ([qa-checklist.md](qa-checklist.md))                          |
 | **Eval**        | Gate on prompt change | Grounding, distractor plausibility, schema conformance, language correctness ([../llm/eval-harness.md](../llm/eval-harness.md))        |
 
 **Adapters are stubbed in every automated test.** Tests never call Ollama or the network: they would be slow,
 non-deterministic, and would fail for reasons unrelated to the code. Real providers are exercised by the eval suite
 and by manual release testing.
+
+**Where the suite actually stands: 337 unit and integration tests, and no E2E suite.** The gap is recorded rather
+than papered over — a Playwright stage that passes because it runs nothing would be worse than the honest absence
+([../operations/ci-cd.md](../operations/ci-cd.md)). Everything the E2E layer would cover is currently covered one
+level down, through the services rather than through the window.
 
 ## Coverage Goals
 

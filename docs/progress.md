@@ -2,7 +2,7 @@
 title: Progress
 discipline: project
 status: active
-updated: 2026-09-03
+updated: 2026-09-04
 ---
 
 # Progress
@@ -12,164 +12,50 @@ updated: 2026-09-03
 
 ## Current Status
 
-**M-1 done and verified against a real model.** The app launches, creates and migrates its database, serves the
-skills view over a sandboxed IPC boundary, lists installed Ollama models, and completes a round-trip generation whose
-schema-constrained output parses. Releasing the model with `keep_alive: 0` was verified as well, so the memory design
-is proven rather than asserted.
+**Every milestone is built. M-1 through M-3 are signed off against real APIs and a real model; M-4 through M-8 are
+built and covered by tests but have not been watched running by a person. M-9 is closed as superseded.** 337 tests,
+type check, lint and build green.
 
-The first honest end-to-end measurement took **82.8 s** for a two-sentence card. It now takes **0.9 s warm, at 100%
-GPU** — two settings found by measuring, both now in the adapter and documented in
-[operations/performance.md](operations/performance.md).
+What the app does today: a skill is added, researched from GitHub, its declared documentation and Wikipedia, and
+written up as a grounded primer card with its sources. Skills are classified and linked, and a strongly related pair
+gets a comparison card. Questions are assembled by code from atomic claims — the right answer is the skill's own, the
+three wrong ones belong to three different neighbours. FSRS serves a small daily set, frozen per local day. Anything
+in it can be starred with a note and exported as Markdown. Settings, an installer, and a tray icon are in.
 
-**M-2 is done and verified end to end.** Adding a skill now enqueues background research that searches, resolves,
-fetches, synthesizes and stores a card with its sources — with the model released when the queue drains. Against the
-real APIs and a real model: `nginx` produced an accurate three-paragraph primer in 10.8 s, and `Zustand` resolved to
-`pmndrs/zustand` rather than the Wikipedia article on Pompeii. 117 tests.
+The per-milestone story — including the measurements that overturned three confident designs — is in
+[project/roadmap.md](project/roadmap.md) and the [CHANGELOG](../CHANGELOG.md); the decisions are in the
+[ADRs](architecture/adr/README.md).
 
-Its parts:
-
-- The **durable job queue** — retries transient failures with a backoff that survives a restart, refuses to retry a
-  configuration failure, gives up after a limit, resumes work interrupted by a crash, and releases the model exactly
-  once per drain. Migration 002 was applied to a copy of the real database before being committed.
-- The **search adapters** — GitHub (repository plus its declared documentation), Wikipedia, and HTML/Markdown
-  extraction. They return **candidates**, never sources: the text of a candidate is not even fetched until resolution
-  has accepted it.
-- The **resolution stage** — the deterministic name gate plus the `resolve-source` model call. Against the real
-  model it scored 5/5 on the collisions the precision probe found, **including all three whose right answer is
-  "none"**. That was the riskiest assumption in ADR-0003.
-
-**M-3 is done.** Research now classifies each skill, recomputes its edges in the graph, and queues a comparison for
-every pair strong enough to earn one. Verified live: `nginx` and `Traefik` linked at 0.83 and produced a comparison
-naming concrete differences; `nginx` and `PostgreSQL` did not link. 144 tests.
-
-**M-4 is built and measured.** Questions are assembled by code from _claims_: one atomic statement about a skill,
-drawn from its card, that never names its own technology. A question about `nginx` is one `nginx` claim plus three
-claims belonging to its graph neighbours.
-
-Claims are written **per pair, with both technologies in view** — one call returns what is true of each and false of
-the other. That shape was forced by measurement, not chosen: the first design wrote claims about each skill alone and
-gated borrowed ones afterwards, which left 1 of 28 standing and produced no questions at all
-([ADR-0006](architecture/adr/0006-pairwise-claims.md) supersedes that mechanism; ADR-0004's framing still stands).
-Because a pair yields about one usable claim per side, the three wrong answers come from three different
-neighbours — which is also the better question, since the confusion spans the CV rather than one entry in it.
-
-The **"bad question" flag always carries a reason**, and a target separating the question from its explanation. A
-bare thumbs-down was rejected as unactionable: two correct options is a missing code rule, a wandering explanation is
-a prompt problem, and reading every flag as "change the prompt" is the one response that cannot be measured
-([ADR-0005](architecture/adr/0005-feedback-as-eval-data.md)).
-
-Writing the tests found a real defect: the generation job legitimately runs more than once per skill — a neighbour
-finishing its research re-enqueues it — and the first version rebuilt the same questions from the same claims. It now
-skips any claim already asked about, including one whose question the user flagged.
-
-**M-5 is built.** The daily set — FR-40 through FR-44 — is assembled once per local day and frozen
-(`daily_set_items`), so reopening the app resumes the same set rather than reassembling around whatever just became
-due. Content is not frozen the same way: a question flagged after assembly still disappears, because the read path
-re-checks `questions.status` live for every id rather than trusting what was true at assembly time.
-
-Scheduling is [ADR-0007](architecture/adr/0007-fsrs-scheduler.md): FSRS via the `ts-fsrs` library rather than a hand
-port — a 21-weight algorithm across seven interdependent formulas is exactly the kind of specialist code this
-project has chosen not to reimplement elsewhere (search, extraction, constrained decoding), for the same reason —
-run in **long-term mode** (no Anki-style same-day learning steps, which nothing here needs) on a **two-point rating**
-rather than the library's usual four, because neither signal this product has is finer than binary: a question's
-outcome is correct-or-not, and a card carries no correctness at all. Four golden values were read once from the real
-dependency and pinned as regression tests, rather than hand-derived and risking validating the port against its own
-misunderstanding.
-
-The reminder (FR-44) is a plain OS notification at a configured time, not a persistent tray icon — no icon asset
-exists in the repository yet, and inventing a placeholder felt worse than the honest gap
-([TD-16](project/tech-debt.md)). `daily_cards`, `daily_questions` and `reminder_time` — TBD since M-2 — now have real
-defaults (`3`, `5`, `18:00`), chosen deliberately but not evidence-based.
-
-**M-6 is built.** Any card or question in the daily set can be starred, given a note, and the lot exported as one
-Markdown file grouped by skill, with every source preserved as a followable link rather than an id.
-
-Both edge cases the spec names are real behaviour, not aspiration. A favourite whose skill is later deleted survives
-the cascade that takes its card away — the row holds no foreign key precisely so it can — and shows up as a
-tombstone in the list and under "No longer tracked" in the export, with the user's note intact. An export with
-nothing kept is refused rather than writing a file with a heading and nothing under it.
-
-The renderer is a pure function asserted character for character; hydration is shared by the list and the export, so
-what is read on screen and what lands in the file cannot drift. Only the save dialog and the file write touch
-Electron.
-
-**M-7 is built, and it earned its keep on the first run.** `npm run eval` runs six frozen sets through the _shipped_
-pipeline — not a copy — and scores the metrics a machine can settle. Groundedness, distractor plausibility and
-ambiguity are written to a review file for a person instead, because an LLM-as-judge agrees with exactly the mistakes
-that matter most.
-
-The first run found a bug in the harness, then a bug in the product. The harness bug: fixtures conflated a
-candidate's `identity` with its `title`, so the name gate rejected correct candidates. The product bug was worse and
-two milestones old — `resolve-source` asked the model for `index` before `reason`, and under constrained decoding
-with no scratchpad that means committing to an answer before reasoning about it. The model's reasoning was right
-every single time; the number it had already emitted was wrong. Resolution never answered "none", which is the
-refusal ADR-0003 rests on.
-
-Ordering `reason` before `index` took the disambiguation set from 1/4 to **7/7**, refusals included, and closed
-[TD-10](project/tech-debt.md) — open since M-3 and diagnosed then as a judgement problem it never was.
-
-Two metrics fail at baseline and are recorded rather than smoothed over: a sign-in page still produces a card
-([TD-17](project/tech-debt.md)), and Turkish requests come back in English ([TD-18](project/tech-debt.md)). Both were
-suspected in the docs for months and neither was a number until now.
-
-**M-8 is built.** `npm run package` produces a real Windows installer — verified by running it, not by trusting the
-config: ~120 MB, NSIS, the app's own icon, `better-sqlite3` unpacked so the native module loads at runtime, and an
-uninstall that leaves the user's database alone. CI builds it on a tag or on request rather than on every commit,
-because 120 MB per push buys nothing.
-
-The settings screen covers counts, reminder, language, model, Ollama URL and an optional GitHub token. Every field is
-validated in the main process, which is the point rather than a nicety: a `reminder_time` of "half six" would make
-the reminder return false forever with nothing on screen to explain it. Writing that validation immediately found a
-bug — `Number('')` is zero, so clearing the daily count would have silently meant "nothing today" instead of being
-refused.
-
-The icon closed [TD-16](project/tech-debt.md) as a side effect: the installer needed one, so the tray could finally
-have one too. It carries an Open/Quit menu and a tooltip that says whether today's set is unfinished.
+**Two things about that status are worth stating plainly.** The remaining work is almost entirely _looking at it_
+rather than building it: five milestones are green on tests that, by construction, cannot answer whether the content
+is any good. And the eval harness — the one thing that can — has produced its judged material and is waiting on a
+human to score it.
 
 ## In Progress
 
-- **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests
-  against stubs or a temp database; none has been watched running against a real model with real skills. M-4: do the
-  claims read as specific and the distractors as plausible. M-5: does a real daily set, on screen, feel like a
-  reason to open the app tomorrow. M-6: does the exported Markdown read well in an editor. 288 tests pass either
-  way — they cover assembly, scheduling, the reminder's timing logic, the transactional answer path and the export
-  renderer, but none of them can answer any of those three questions.
+- **M-4, M-5 and M-6 have not been read end to end in the app yet.** All three are built and covered by tests against
+  stubs or a temp database; none has been watched running against a real model with real skills. M-4: do the claims
+  read as specific and the distractors as plausible. M-5: does a real daily set, on screen, feel like a reason to open
+  the app tomorrow. M-6: does the exported Markdown read well in an editor. The tests cover assembly, scheduling, the
+  reminder's timing logic, the transactional answer path and the export renderer, and none of them can answer any of
+  those three questions.
 
 ## Done (recent)
 
-| Date       | What                                                                                                                       |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-02 | [ADR-0002](architecture/adr/0002-constrained-decoding.md) — JSON Schema at the runtime, plus a parse                       |
-| 2026-09-02 | Search coverage + precision probes (`evals/probes/`) — naive search grounds to the wrong subject                           |
-| 2026-09-02 | [ADR-0003](architecture/adr/0003-source-resolution.md) — resolution gates; GitHub primary, DuckDuckGo dropped              |
-| 2026-09-02 | Repository made ready for public release; brief archive and Acta registry excluded                                         |
-| 2026-09-03 | `think: false` and `num_gpu: 99` added to the adapter after measurement — 82.8 s → 0.9 s, 100% GPU                         |
-| 2026-09-03 | **M-1 signed off** — all four exit criteria verified against a real `qwen3:4b`                                             |
-| 2026-09-03 | M-2: durable job queue with retry, backoff surviving restarts, and model release on drain                                  |
-| 2026-09-03 | M-2: search adapters returning candidates, plus HTML/Markdown extraction                                                   |
-| 2026-09-03 | Measured GitHub query strategies — `in:name` from ADR-0003 was wrong; plain relevance scores 7/7 against 6/7               |
-| 2026-09-03 | M-2: resolution stage — name gate calibrated against real names, subject check 5/5 on a real model                         |
-| 2026-09-03 | M-2: primer synthesis, the research pipeline, and a UI that shows a card with its sources                                  |
-| 2026-09-03 | **M-2 signed off** — `nginx` and `Zustand` produce correct, grounded cards against real APIs and a real model              |
-| 2026-09-03 | [ADR-0004](architecture/adr/0004-claim-based-questions.md) — claims cross between skills; the gate before borrowing        |
-| 2026-09-03 | [ADR-0005](architecture/adr/0005-feedback-as-eval-data.md) — flags carry a reason and reach the model only via measurement |
-| 2026-09-03 | M-4: claim generation, discrimination gate, code-assembled questions, and the pure structural validator                    |
-| 2026-09-03 | M-4: reasoned flag path — recorded, grouped by prompt version, and out of rotation in one transaction                      |
-| 2026-09-03 | Measured the discrimination gate — 1 of 28 distractors survived; more material changed nothing                             |
-| 2026-09-03 | [ADR-0006](architecture/adr/0006-pairwise-claims.md) — pairwise claims replace the gate; 6/6 pairs, 4/4 skills askable     |
-| 2026-09-03 | M-4: a name used as a claim's subject is stripped rather than dropped, and explanations may not cite option positions      |
-| 2026-09-03 | Settled the truncation/`num_ctx` TBD — measured against real prompts and real articles, no overflow at 4096                |
-| 2026-09-03 | Wired `SKILL_INTERVIEW_DATA_DIR`; the resolved path is never logged, only whether it was overridden                        |
-| 2026-09-03 | Added CI (`.github/workflows/ci.yml`) — install, typecheck, lint, test, compile-only build on Windows runners              |
-| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating                 |
-| 2026-09-03 | M-5: daily-set assembly, frozen per local day, content re-checked live on every read                                       |
-| 2026-09-03 | M-5: the transactional answer path — schedule and mark-done together, or neither                                           |
-| 2026-09-03 | M-5: the reminder — pure timing logic plus the one `Notification` call, once-per-day gated                                 |
-| 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                     |
-| 2026-09-03 | Found while trying to test M-4/M-5 live: no way existed to select an Ollama model without restarting the app               |
-| 2026-09-03 | `SwappableLlmAdapter` — selecting a model in setup swaps the live adapter in place; pulled forward out of M-8's scope      |
-| 2026-09-03 | M-6: favourites with notes, kept as tombstones when their skill is deleted                                                 |
-| 2026-09-03 | M-6: Markdown export grouped by skill — pure renderer, refuses to write an empty file                                      |
+| Date       | What                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-03 | [ADR-0006](architecture/adr/0006-pairwise-claims.md) — pairwise claims replace the gate; 6/6 pairs, 4/4 skills askable |
+| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating             |
+| 2026-09-03 | M-5: daily-set assembly frozen per local day, with content re-checked live on every read                               |
+| 2026-09-03 | Closed M-9 — superseded by the repository already being public; real use replaces a private 30-day log                 |
+| 2026-09-03 | `SwappableLlmAdapter` — selecting a model swaps the live adapter in place, no restart                                  |
+| 2026-09-03 | M-6: favourites with notes, kept as tombstones when their skill is deleted; Markdown export grouped by skill           |
+| 2026-09-04 | M-7: the eval harness — six frozen sets through the shipped pipeline, judged metrics left to a person                  |
+| 2026-09-04 | First eval run found a two-milestone-old bug: `resolve-source` answered before reasoning. 1/4 → 7/7, closing TD-10     |
+| 2026-09-04 | Recorded TD-17 and TD-18 as failing baselines, then fixed both — grounding guard, and the language stated last         |
+| 2026-09-04 | M-8: settings screen with main-process validation, Windows installer, tray icon (closing TD-16), CI package job        |
+
+Older entries live in the [CHANGELOG](../CHANGELOG.md).
 
 ## Blocked
 
@@ -198,16 +84,14 @@ have one too. It carries an Open/Quit menu and a tooltip that says whether today
 - Whether `num_gpu: 99` is safe on GPUs smaller than the reference machine's 4 GB. Configurable, but untested there.
 - **Nothing independently checks that a wrong answer is really wrong** ([TD-12](project/tech-debt.md)). The gate that
   did was measured into the ground and removed; one generation call now carries that judgement alone. The user's
-  `ambiguous` flag is the production signal, and its rate per prompt version is what M-7 should watch.
+  `ambiguous` flag is the production signal, and its rate per prompt version is what the eval harness should watch.
 - **A skill needs three researched neighbours before it can be asked about** ([TD-14](project/tech-debt.md)), because
   a pair yields about one usable claim per side. Asking the prompt for more was measured and costs more than it buys.
 - **`MAX_LENGTH_RATIO` and the claim-count bounds are still guesses** ([TD-11](project/tech-debt.md)), like the
   primer's length bounds before them — and still unmeasured, because no question survived far enough to exercise
   them. They belong to the eval set rather than to another round of hand-tuning.
-- **Resolution treats packaging for a technology as the technology** ([TD-10](project/tech-debt.md)). Contained, not
-  fixed: the card survives, the skill goes unclassified, nothing false is claimed. Belongs to the eval harness.
+- **Claims still come back as trivia** ([TD-13](project/tech-debt.md)) more often than as the distinctions that
+  matter. Contained by validation, not solved by it.
 - **Whether a two-point rating schedules as well as FSRS's usual four** ([TD-15](project/tech-debt.md)) is unmeasured
   — a deliberate trade-off, since neither signal this product has is finer than binary, but untested against real
   review patterns.
-- **The reminder has no persistent tray icon** ([TD-16](project/tech-debt.md)), only a plain notification — no icon
-  asset exists yet. Naturally M-8 work, once the installer needs one anyway.

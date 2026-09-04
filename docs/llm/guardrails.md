@@ -2,7 +2,7 @@
 title: Guardrails
 discipline: llm
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Guardrails
@@ -42,7 +42,10 @@ expected is a parse failure and a retry, never a partial success.
 
 - Parses as JSON against the task's schema, or the job retries and then fails.
 - Falls within the task's length band; one reformat retry, then fail.
-- Is in the requested content language.
+- Is in the requested content language — **enforced, not merely requested**. `looksLike` in
+  [`src/main/util/language.ts`](../../src/main/util/language.ts) rejects prose in the wrong language, and the eval
+  harness imports that same function rather than re-implementing it, so the guard and the metric cannot drift apart.
+  This existed as an aspiration in this document for two milestones before it was a check; TD-18 is what it cost.
 - Is stored with `model` and `prompt_version`.
 
 ### Cards
@@ -61,13 +64,24 @@ The original design guarded only against _missing_ sources. Measurement showed t
 _confidently wrong_ one: searching "Zustand" returned the article on Pompeii, and "Redis" on GitHub returned an
 interview guide. Both would have grounded a fluent, cited, entirely wrong card.
 
-| Gate              | Rejects                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Name match**    | A candidate whose title or repository name does not match the skill's slug                                      |
-| **Subject check** | A candidate that matches by name but is a different subject — the ancient Tauri people versus the app framework |
-| Extraction        | Login walls, JS-only shells, empty text                                                                         |
+| Gate                  | Rejects                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Name match**        | A candidate whose title or repository name does not match the skill's slug                                      |
+| **Subject check**     | A candidate that matches by name but is a different subject — the ancient Tauri people versus the app framework |
+| Extraction            | Login walls, JS-only shells, empty text                                                                         |
+| **Material names it** | Retained text that never mentions the skill at all, checked before the model is called at all                   |
 
-Nothing surviving both gates fails the job. The bias is deliberate and asymmetric: refusing a correct source costs
+The last gate was added after the eval harness measured a sign-in page still producing a card (TD-17). Extraction
+discards the obvious shells, but a page can extract to plausible prose that is simply about something else; requiring
+the material to name its own subject costs one string search and closes that path before a token is generated.
+
+The **subject check asks for its reasoning before its answer**, which is not a stylistic choice. Under constrained
+decoding there is no scratchpad, so a schema that puts the answer first makes the model commit before it reasons —
+and its own explanation then contradicts the index it already emitted. Reversing the two fields took the
+disambiguation eval from 1/4 to 7/7 and restored the "none of these" refusal this section depends on
+([ADR-0002](../architecture/adr/0002-constrained-decoding.md), Correction).
+
+Nothing surviving the gates fails the job. The bias is deliberate and asymmetric: refusing a correct source costs
 an empty state the user can see, while accepting a wrong one costs their trust in every card they have read.
 
 ### Questions — the strict set
@@ -83,6 +97,20 @@ Rejection is cheap; a bad question shown to the user is not.
 | Length band          | Options outside a bounded ratio of each other — length is the classic giveaway |
 | Rationale present    | Any option without one                                                         |
 | Minimum distractors  | Fewer than three usable → the question is dropped, never padded                |
+| No positional refs   | An explanation citing "option A" — options are shuffled after generation       |
+| Not already asked    | A claim this skill has been questioned on before, flagged questions included   |
+
+### Claims — before a question is built from them
+
+A claim is one atomic statement about a skill, and it may **not name its own technology**: an option reading "nginx
+is a reverse proxy" gives the answer away when the question is about nginx. A claim that arrives with its subject
+attached has the prefix stripped rather than being dropped — the statement is usually fine, only its opening is
+wrong.
+
+Claims are generated **per pair of skills**, with both in view, and the model is asked what is true of each and false
+of the other. The earlier design generated them per skill and gated borrowed ones afterwards; measured, that gate
+left 1 of 28 distractors standing and produced no questions at all
+([ADR-0006](../architecture/adr/0006-pairwise-claims.md)).
 
 Rejections are **recorded, not silently discarded**: the rejection reason feeds the quality metrics that decide
 whether the prompt or the model is at fault.
@@ -106,6 +134,8 @@ The system refuses by **failing the job visibly**, never by producing a lower-qu
 
 - No usable sources → job fails with its reason shown; no card is created.
 - No candidate survives resolution → job fails; the skill is reported as unresolvable rather than researched badly.
+- Retained material never names the skill → job fails before the model is called.
+- Output comes back in the wrong language → rejected, not stored and not translated after the fact.
 - Sources contradict each other → the card states the disagreement rather than picking silently.
 - Output fails schema or structural validation after retries → job fails; nothing is stored.
 - Fewer than three usable distractors → the question is dropped.

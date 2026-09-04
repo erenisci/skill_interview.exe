@@ -2,7 +2,7 @@
 title: Eval Harness
 discipline: llm
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Eval Harness

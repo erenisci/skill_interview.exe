@@ -2,7 +2,7 @@
 title: Database Design
 discipline: code
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Database Design

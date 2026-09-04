@@ -2,7 +2,7 @@
 title: CI/CD
 discipline: ops
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # CI/CD

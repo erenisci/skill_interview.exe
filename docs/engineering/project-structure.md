@@ -2,7 +2,7 @@
 title: Project Structure
 discipline: code
 status: active
-updated: 2026-09-02
+updated: 2026-09-04
 ---
 
 # Project Structure
