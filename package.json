@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "npm run typecheck && electron-vite build",
-    "package": "npm run build && electron-builder --win --config electron-builder.yml",
+    "package": "npm run build && electron-builder --win --config electron-builder.yml --publish never",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

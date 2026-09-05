@@ -44,3 +44,10 @@ nsis:
 # No code-signing certificate. First run will show a SmartScreen warning, which is the
 # honest state of a free, unsigned app rather than something to work around
 # (docs/operations/ci-cd.md).
+
+# Building and publishing are separate acts here. Seeing a git tag, electron-builder would
+# otherwise upload to GitHub Releases on its own — and fail without a token, after the
+# installer had already been built successfully, which reads as a build failure when it is
+# not. CI uploads the artifact; a person decides when a release exists
+# (docs/operations/ci-cd.md).
+publish: null
