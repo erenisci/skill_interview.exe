@@ -9,3 +9,10 @@ evals/sources/*.txt
 node_modules/
 out/
 dist/
+
+# The TypeScript project configs. Two formatters were writing to these — prettier, which
+# fits an array onto one line, and the editor, which puts one entry per line — so whichever
+# ran last left the other complaining, and a red `prettier --check` blocks CI and with it the
+# release. One entry per line is the better shape for a config anyway: adding a path changes
+# one line rather than rewrapping the array.
+tsconfig*.json
