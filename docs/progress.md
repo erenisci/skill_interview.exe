@@ -2,7 +2,7 @@
 title: Progress
 discipline: project
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Progress
@@ -12,57 +12,55 @@ updated: 2026-09-04
 
 ## Current Status
 
-**Every milestone is built, and the first real session with the app found seven defects that no test had.** M-1
-through M-3 were signed off earlier; M-4 through M-8 are built and covered by tests. M-9 is closed as superseded.
-380 tests, type check, lint and build green, and the eval suite at 100% on every deterministic metric.
+**Every milestone is built, the app has been read end to end by a person, and the judged eval metrics are scored for
+the first time.** 421 tests, type check and build green; the deterministic eval at 100% on every metric, and the
+three judged ones now scored — see below for why that number is thinner than it looks.
 
 What the app does today: a skill is added, researched from GitHub, its declared documentation and Wikipedia, and
-written up as a grounded primer card with its sources. Skills are classified and linked, and a strongly related pair
-gets a comparison card. Questions are assembled by code from atomic claims — the right answer is the skill's own, the
-three wrong ones belong to three of the user's other skills. FSRS serves a small daily set, spread across skills and
-frozen per local day. Anything in it can be starred with a note and exported as Markdown. Settings, an installer, a
-tray icon, close-to-tray and an optional Windows login item are in.
+written up as a grounded primer card with its sources. Skills are classified and linked, and a pair sharing a
+category gets a comparison card. **A skill is asked about whether or not it has a neighbour** — contrast questions
+where there is one, questions from its own material where there is not. FSRS serves a small daily set, spread across
+skills, reading as a card followed by the questions drawn from it. Anything can be kept, grouped the same way, and
+exported. Settings, an installer, a tray icon, close-to-tray and an optional Windows login item are in.
 
-**The product is English-only.** Turkish was built, measured and withdrawn — the one scope decision this project has
-reversed ([TD-19](project/tech-debt.md)).
+**The product is English-only.** Turkish was built, measured and withdrawn — the one scope decision reversed
+([TD-19](project/tech-debt.md)).
 
-The per-milestone story — including the measurements that overturned three confident designs — is in
-[project/roadmap.md](project/roadmap.md) and the [CHANGELOG](../CHANGELOG.md); the decisions are in the
-[ADRs](architecture/adr/README.md).
+**Two measurements matter more than any green tick here.**
 
-**The lesson of 2026-09-04 is worth stating plainly.** Five milestones were green on 337 tests, and the first hour of
-someone actually using the app produced: a name gate that discarded the right Wikipedia article and kept the wrong
-one, a resolution prompt that refused all six languages tried, a job queue that grew without bound, claims answering
-in the wrong language, a daily set frozen at half its size, a misleading empty state, and a rule requiring three
-related skills that a real CV cannot satisfy. None of them was subtle. None of them was reachable from a test that
-does not open the window.
+The judged metrics scored 3/3, 4/4 and 4/4, and groundedness was _checked_ rather than judged: all 41 specific
+assertions across three cards were looked for in their frozen source and all 41 were there. Nothing invented. That is
+the rule the product would die without, and it holds.
 
-What is left is the same shape: the judged eval metrics are generated and waiting on a person, and nobody has yet
-read a day's questions on screen.
+The questions are a different story. Of seven generated live on the same model, **three were flawed** — one with a
+correct answer that was wrong, one with three correct options. The mechanical checks passed all of them, because
+nothing checks that a wrong answer is wrong ([TD-12](project/tech-debt.md), [TD-25](project/tech-debt.md)).
+
+And the ceiling on all of it is retrieval, not the prompt: **52% to 71% of a retrieved article is provenance** —
+dates, licences, sponsors — and Redis's article reaches none of persistence, eviction, replication or pub/sub
+([TD-24](project/tech-debt.md)). Trivia in the output had been treated as a prompt failure for two milestones; the
+model was answering faithfully from a company history.
 
 ## In Progress
 
-- **M-4, M-5 and M-6 have not been read end to end in the app yet.** The blocking defects found on 2026-09-04 are all
-  fixed, so the run is now possible; it has not been done. M-4: do the claims read as specific and the distractors as
-  plausible. M-5: does a real daily set, on screen, feel like a reason to open the app tomorrow. M-6: does the
-  exported Markdown read well in an editor. No test can answer any of those three.
+- **Nothing blocking.** The app has been run, read and approved; the eval is scored. What is open is measured and
+  recorded rather than unknown.
 
 ## Done (recent)
 
-| Date       | What                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-03 | [ADR-0007](architecture/adr/0007-fsrs-scheduler.md) — FSRS via `ts-fsrs`, long-term mode, two-point rating          |
-| 2026-09-03 | Closed M-9 — superseded by the repository already being public                                                      |
-| 2026-09-03 | M-6: favourites with notes and Markdown export, grouped by skill                                                    |
-| 2026-09-04 | M-7: the eval harness — frozen sets through the shipped pipeline, judged metrics left to a person                   |
-| 2026-09-04 | M-8: settings screen, Windows installer, tray icon, CI package job                                                  |
-| 2026-09-04 | First live session: the name gate kept the Indonesian island and discarded the Java language. Fixed, 5 languages    |
-| 2026-09-04 | `resolve-source.v2` — say what qualifies, judge every candidate first. Live 1/6 → 5/6, frozen 7/7                   |
-| 2026-09-04 | Fixed a question queue that grew without bound ([TD-21](project/tech-debt.md)) — 1,098 rows on a real machine       |
-| 2026-09-04 | Dropped the three-neighbour rule ([TD-14](project/tech-debt.md)) — a CV does not grow on request                    |
-| 2026-09-04 | The daily set spreads across skills and tops up slots it never filled; per-skill limits on the skill's own page     |
-| 2026-09-04 | Withdrew Turkish ([TD-19](project/tech-debt.md)) — measured twice, neither fix moved it. English-only, deliberately |
-| 2026-09-04 | Close-to-tray, optional Windows login item, new palette, expand animation, no scrollbar shift                       |
+| Date       | What                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-04 | M-7: the eval harness — frozen sets through the shipped pipeline, judged metrics left to a person                    |
+| 2026-09-04 | M-8: settings screen, Windows installer, tray icon, CI package job                                                   |
+| 2026-09-04 | `resolve-source.v2` — say what qualifies, judge every candidate first. Live 1/6 → 5/6, frozen 7/7                    |
+| 2026-09-04 | Fixed a question queue that grew without bound ([TD-21](project/tech-debt.md)) — 1,098 rows on a real machine        |
+| 2026-09-04 | Dropped the three-neighbour rule ([TD-14](project/tech-debt.md)) — a CV does not grow on request                     |
+| 2026-09-04 | Withdrew Turkish ([TD-19](project/tech-debt.md)) — measured twice, neither fix moved it                              |
+| 2026-09-04 | Close-to-tray, Windows login item, new palette, no scrollbar shift; the reminder now actually reaches Windows        |
+| 2026-09-05 | `self-questions.v1` — a skill is asked about on its own. Stem first, measured 14/17 against 8/12 for the alternative |
+| 2026-09-05 | Today and Kept both read as a card followed by its questions; a question can be kept on its own                      |
+| 2026-09-05 | Measured that material is 52–71% provenance ([TD-24](project/tech-debt.md)) — the real ceiling on question quality   |
+| 2026-09-05 | First scored judged eval: groundedness 3/3 with all 41 assertions verified against source                            |
 
 Older entries live in the [CHANGELOG](../CHANGELOG.md).
 
@@ -72,12 +70,12 @@ Older entries live in the [CHANGELOG](../CHANGELOG.md).
 
 ## Next Up
 
-1. Add four or five skills in the app and read the day's questions (M-4), the daily set (M-5) and an export (M-6)
-   end to end — the check a probe or a stubbed test cannot make for any of them
-2. Score the judged eval metrics (`evals/results/`) — groundedness, distractor plausibility, ambiguity are generated
-   and waiting, and they are the only measurements that say anything about quality
-3. Write the E2E suite, once those two have confirmed the flows are the right ones. Everything found on 2026-09-04
-   was reachable only by opening the window, which is exactly what this layer would automate
+1. Write the E2E suite. Every defect found on 2026-09-04 and 2026-09-05 was reachable only by opening the window,
+   which is exactly what this layer automates — and the flows are now settled enough to be worth pinning
+2. Read the flag data once there is some. `ambiguous` and `wrong-answer` rates per prompt version are the production
+   signal for [TD-25](project/tech-debt.md), and the only measurement that can close it
+3. Decide the retrieval question in [TD-24](project/tech-debt.md): which pages beyond a documentation homepage may
+   ground a card. It touches rule 2, so it is a decision before it is code
 
 ## Open Decisions
 
@@ -97,8 +95,9 @@ Older entries live in the [CHANGELOG](../CHANGELOG.md).
 - **`MAX_LENGTH_RATIO` and the claim-count bounds are still guesses** ([TD-11](project/tech-debt.md)), like the
   primer's length bounds before them — and still unmeasured, because no question survived far enough to exercise
   them. They belong to the eval set rather than to another round of hand-tuning.
-- **Claims still come back as trivia** ([TD-13](project/tech-debt.md)) more often than as the distinctions that
-  matter. Contained by validation, not solved by it.
+- **Claims come back as trivia because the material is trivia** ([TD-24](project/tech-debt.md)). Treated as a prompt
+  problem for two milestones; measured at 52-71% provenance in the retrieved article. A code filter contains the
+  symptom, and the cause is retrieval.
 - **Whether a two-point rating schedules as well as FSRS's usual four** ([TD-15](project/tech-debt.md)) is unmeasured
   — a deliberate trade-off, since neither signal this product has is finer than binary, but untested against real
   review patterns.

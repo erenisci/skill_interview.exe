@@ -46,6 +46,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Per-skill daily limits, set on the skill's own page: blank for no limit, 0 to pause a skill without deleting it
   and losing its review history.
 - The reason a skill's research failed is now shown under it, instead of a red badge with nothing behind it.
+- Questions about a skill on its own, drawn from its own material. A skill with nothing to compare against used to
+  wait for a neighbour a real CV may never provide; adding a skill is now enough to be asked about it.
+- A kept question can be starred on its own, before it has been answered, as well as with its card.
+- Kept items show a card with the questions drawn from it underneath, numbered.
 
 ### Changed
 

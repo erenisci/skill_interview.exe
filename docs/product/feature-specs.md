@@ -2,7 +2,7 @@
 title: Feature Specs
 discipline: product
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Feature Specs
@@ -69,9 +69,21 @@ above a threshold. For each related pair, a comparison card is generated from bo
 
 **Summary.** Produce validated four-option multiple-choice questions with explanations.
 
-**Behavior.** For a given card, the model is asked for a question stem, the correct option, and a rationale — each
-tied to a span of the source text. Distractors are assembled from sibling skills' real properties where relations
-exist, and only otherwise from the model. Every question passes structural validation before it is stored.
+**Behavior.** Two sources, in this order.
+
+**Contrast questions**, where the skill has a neighbour. Claims are generated per pair with both technologies in
+view, one true of each and false of the other; the correct option is the skill's own claim and the wrong ones are
+real claims belonging to other skills the user has. These are the sharper questions — a wrong answer that is a true
+statement about something the reader also knows is the confusion an interview actually probes — so they are written
+first, and distractors prefer genuine graph neighbours over anything else in the pool.
+
+**Questions from the skill's own material**, which fill whatever is left and which are the whole answer for a skill
+with no neighbour at all. The stem is written first and the four answers to it after, which is what makes the wrong
+ones possible: they are real mechanisms that are wrong _for this question_ rather than sentences that must be false
+about the world. Measured, the second shape scores 14 of 17 where the first scored 8 of 12 with half its "false"
+statements actually true.
+
+Every question passes the same structural validation before it is stored.
 
 **Validation rules.**
 
@@ -79,7 +91,13 @@ exist, and only otherwise from the model. Every question passes structural valid
 - No "all of the above", "none of the above", or "both A and B".
 - Option lengths within a bounded ratio of each other — length is the classic giveaway.
 - No duplicate options after normalization.
-- Every option has a rationale.
+- **No option names any technology in play.** The stem may name the skill — that is how an interviewer asks — and an
+  option that names its own technology hands over the answer.
+- **Nothing that is only trivia**: dates, version numbers, licences, authorship, popularity. Those separate two
+  technologies perfectly and teach nothing.
+- A contrast option carries a rationale naming which technology it describes. An option from the skill's own
+  material carries none, because there is no such attribution to make and filler would say the same thing under
+  every wrong answer in every export.
 
 **States.** `generated` → `validated` → `active` · `rejected` · `flagged` (by the user)
 
@@ -87,6 +105,7 @@ exist, and only otherwise from the model. Every question passes structural valid
 
 - Distractor is accidentally also true → rejected; this is the main quality risk and the eval suite targets it.
 - Fewer than three usable distractors → the question is dropped, not padded.
+- A skill with no neighbour at all → asked about from its own material rather than left unaskable.
 - The model returns malformed JSON → parse failure, retry, then fail.
 
 **Out of Scope.** Free-text answers, code-completion questions, timed exams.
@@ -129,8 +148,9 @@ grouped by skill, preserving explanations, notes, and source links.
 **Summary.** Get the user from install to a working app, and hold their preferences.
 
 **Behavior.** On launch the app probes Ollama and the installed model list. Missing runtime or model routes to the
-setup screen with the exact commands to run. Settings cover content language, daily counts, reminder, model choice,
-Ollama URL, and an optional GitHub token that only raises a search rate limit.
+setup screen with the exact commands to run. Settings cover the reminder, whether the app stays in the tray, whether
+it starts with Windows, the model, the Ollama URL, and an optional GitHub token that only raises a search rate limit.
+How much a day holds is set per skill rather than globally ([../operations/configuration.md](../operations/configuration.md)).
 
 Each field saves on its own, on blur or on toggle, rather than behind a Save button, and is validated in the main
 process ([../operations/configuration.md](../operations/configuration.md)) — so a bad value is refused at the field

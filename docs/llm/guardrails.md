@@ -2,7 +2,7 @@
 title: Guardrails
 discipline: llm
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Guardrails
@@ -88,17 +88,34 @@ an empty state the user can see, while accepting a wrong one costs their trust i
 
 Rejection is cheap; a bad question shown to the user is not.
 
-| Rule                 | Rejects                                                                        |
-| -------------------- | ------------------------------------------------------------------------------ |
-| Exactly four options | Three or five                                                                  |
-| Exactly one correct  | Zero, or more than one                                                         |
-| No meta-options      | "All of the above", "none of the above", "both A and B"                        |
-| No duplicates        | Options identical after normalization                                          |
-| Length band          | Options outside a bounded ratio of each other — length is the classic giveaway |
-| Rationale present    | Any option without one                                                         |
-| Minimum distractors  | Fewer than three usable → the question is dropped, never padded                |
-| No positional refs   | An explanation citing "option A" — options are shuffled after generation       |
-| Not already asked    | A claim this skill has been questioned on before, flagged questions included   |
+| Rule                 | Rejects                                                                                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exactly four options | Three or five                                                                                                                                                                  |
+| Exactly one correct  | Zero, or more than one                                                                                                                                                         |
+| No meta-options      | "All of the above", "none of the above", "both A and B"                                                                                                                        |
+| No duplicates        | Options identical after normalization                                                                                                                                          |
+| Length band          | Options outside a bounded ratio of each other — length is the classic giveaway                                                                                                 |
+| Rationale            | Required on a contrast option, naming which technology it describes; absent by design on one written from the skill’s own material, where there is no such attribution to make |
+| Minimum distractors  | Fewer than three usable → the question is dropped, never padded                                                                                                                |
+| No positional refs   | An explanation citing "option A" — options are shuffled after generation                                                                                                       |
+| Not already asked    | A claim this skill has been questioned on before, flagged questions included                                                                                                   |
+
+### Questions written from one skill alone
+
+The same table above applies, with one rule read differently and one added.
+
+**The stem may name the skill; no option may.** "How does Java handle X?" is how an interviewer asks a question. An
+option that names its own technology is what hands over the answer, and that is where the rule belongs.
+
+**Nothing that is only trivia**, checked in code rather than requested in the prompt. `looksLikeTrivia` rejects
+dates, version numbers, RFC numbers, licences, authorship and popularity. The distinction it has to make is narrow:
+_10,000 simultaneous connections_ is a capability, _1995_ is a date. The signal is the shape a date or a version
+takes, not the presence of a number.
+
+The wrong answers here are **not** verified false by anything. On a contrast question that property is established
+during generation with both technologies in view; here it rests on one model call
+([TD-25](../project/tech-debt.md)). Measured, the shape holds far better than the alternative — 14 of 17 against
+8 of 12 — and it is still the weakest guarantee in the product.
 
 ### Claims — before a question is built from them
 
@@ -139,6 +156,7 @@ The system refuses by **failing the job visibly**, never by producing a lower-qu
 - Sources contradict each other → the card states the disagreement rather than picking silently.
 - Output fails schema or structural validation after retries → job fails; nothing is stored.
 - Fewer than three usable distractors → the question is dropped.
+- A question that is only trivia → dropped, whichever path wrote it.
 
 An empty state with an explanation is always preferred over invented content. This is a product decision, not a
 technical limitation.

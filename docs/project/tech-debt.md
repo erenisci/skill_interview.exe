@@ -2,7 +2,7 @@
 title: Technical Debt Log
 discipline: project
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Technical Debt Log
@@ -171,6 +171,10 @@ reader came for.
 **Remediation.** Belongs in the eval set as a scored property rather than another prompt round — this rule has been
 strengthened once already with no measured effect, which is the signal to stop hand-tuning
 ([TD-10](#td-10--resolution-cannot-tell-a-technology-from-the-tooling-around-it) records the same lesson).
+**Cause found 2026-09-04, and it is upstream.** This was treated as a prompt problem for two milestones. The
+material is 52% to 71% provenance before the model sees it ([TD-24](#td-24--retrieved-material-is-mostly-provenance-and-that-is-the-ceiling)),
+so the model was answering faithfully from a company history. A deterministic trivia filter now rejects the shapes —
+dates, versions, licences, popularity — at storage, which contains the symptom. The cause is retrieval.
 
 ### TD-14 — A skill needs three researched neighbours before it can be asked about — RESOLVED
 
@@ -324,3 +328,51 @@ comparison cards, and the worst possible distractor pool. The category is the ha
 only rank a relation's strength.
 **Fixed 2026-09-04.** A thin tag list is refused only when the model is also unsure of the category. A confident
 category with no tags is a blunt but usable graph node.
+
+### TD-24 — Retrieved material is mostly provenance, and that is the ceiling
+
+**What.** Measured over the four frozen sources (`evals/probes/material-depth-probe.ts`):
+
+| Source     | Sentences that are provenance | Interview concepts present |
+| ---------- | ----------------------------- | -------------------------- |
+| nginx      | 15 of 21 — 71%                | 2 of 6                     |
+| Redis      | 20 of 30 — 67%                | **0 of 6**                 |
+| PostgreSQL | 14 of 27 — 52%                | 2 of 6                     |
+| HAProxy    | 4 of 13 — 31%                 | 2 of 6                     |
+
+Redis's article reaches none of persistence, expiry, eviction, transactions, replication or pub/sub, and spends
+thirty sentences on funding and licence changes.
+
+**Why it matters, and what it reframes.** [TD-13](#td-13--claims-still-come-back-as-trivia) had been treated as a
+prompt failure — ask for mechanisms, filter the output. The model was answering faithfully from what it was handed:
+a company history, with a request for an interview question. The filter still earns its place as a backstop; it is
+no longer the explanation.
+
+**A cheap fix was tried and measurement rejected it.** Stripping provenance from the material before synthesis
+changes no source-trust rule, so grounding would be untouched. On nginx and Redis it removed nothing — it would have
+cut over 65%, so the floor that stops a page being reduced to nothing returned the original. On HAProxy it removed
+the useful part: concept coverage went 2 of 6 to **0 of 6**, because the sentences naming "health check" and "load
+balancing" also carry a version number and went whole. Reverted. A filter cannot add what is not there.
+
+**Remediation.** Only the _homepage_ of a project's declared documentation is fetched, and a homepage is a landing
+page; the mechanism lives one level in. That is a retrieval change and it touches rule 2, so it needs a decision
+first: which pages may ground a card (following arbitrary links is how a card gets written from a changelog), how a
+deeper page is attributed, and what it costs against a 4096-token window that is already the binding constraint.
+
+### TD-25 — A wrong answer is still only as good as the model's judgement
+
+**What.** `self-questions` lets a skill be asked about with no neighbour, which is what makes the product work for a
+real CV. Measured 14 of 17 on the mechanical checks, and **the content is worse than that number**: of seven
+questions generated live the same day, three were flawed — one had a correct answer that was wrong (JavaScript
+"reference counting" over "garbage collection"), and one offered three answers of which all were correct.
+
+**Why it exists.** Nothing checks that a wrong answer is wrong; that is
+[TD-12](#td-12--nothing-independently-checks-that-a-distractor-is-false--resolved-with-a-residue), and the stem-first
+shape narrows it without closing it. The judgement now rests on one generation call and on the material being right.
+
+**Contained by.** The user's flag, which routes `ambiguous` and `wrong-answer` to different fixes
+([ADR-0005](../architecture/adr/0005-feedback-as-eval-data.md)), and by every mechanical rule the contrast path
+already applies — naming, duplicates, length, trivia.
+
+**Remediation.** Flag rates per prompt version are the production signal and the first thing to read once there is
+enough of it. A larger model is the other lever ([TD-07](#td-07--the-recommended-model-is-a-hypothesis-not-a-measured-result--reframed-2026-09-02)).

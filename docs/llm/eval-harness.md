@@ -2,7 +2,7 @@
 title: Eval Harness
 discipline: llm
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Eval Harness
@@ -105,6 +105,49 @@ The first real run. Deterministic metrics only; the judged ones are awaiting rev
 | **Language accuracy** | 33%   | 1/3    | Turkish asked for, English delivered ([TD-18](../project/tech-debt.md))      |
 
 **These are the baseline and the floor.** No metric drops below its row here without a written reason.
+
+### Judged metrics — 2026-09-05, `qwen3:4b`, first scored run
+
+The three metrics a machine cannot settle, scored against `evals/results/2026-09-05-qwen3-4b.md`.
+
+| Metric                  | Score | Passed | Reading                                              |
+| ----------------------- | ----- | ------ | ---------------------------------------------------- |
+| Groundedness            | 100%  | 3/3    | No invented fact in any card                         |
+| Distractor plausibility | 100%  | 4/4    | Each claim true of its own technology                |
+| Ambiguity               | 100%  | 4/4    | Each claim false of the other, though two are narrow |
+
+**Groundedness was checked rather than judged**, which is the part of this a reviewer can do
+precisely. Every specific assertion in the three cards — 41 of them: names, dates, licence
+identifiers, version numbers, benchmark figures, the W3Techs percentages, the protocol lists —
+was looked for in the frozen source it came from. All 41 are there. Not one number, name or
+date was invented.
+
+That is the single most important thing this harness measures, and it is the rule the product
+would die without: a card that is fluent and wrong is worse than no card.
+
+**Two of the four claim pairs are narrower than the score suggests**, and the number would hide
+that if it stood alone:
+
+- _"uses an asynchronous event-driven approach rather than threads"_ against _"uses an
+  event-driven multithreaded architecture"_. Both technologies **are** event-driven; the whole
+  discrimination rests on threads versus processes. Correct, and a reader skimming could take
+  either. It passes and it is close to the line.
+- _"enforces ACID transactions with atomicity, consistency, isolation, and durability"_ is true
+  of PostgreSQL and false of Redis, so it scores. But the answer is the expansion of the
+  acronym in the question, which tests spelling rather than understanding — exactly what
+  `self-questions.v1` now forbids and what the contrastive prompt does not yet.
+
+**The sample is small and should not be read as a rate.** Three cards and four claims, from two
+pairs, on one model. It says nothing known is broken. It does not say the next four claims will
+be as clean — and the questions generated live the same day were visibly worse: of seven, three
+had a wrong correct answer or more than one correct option
+([TD-12](../project/tech-debt.md) is exactly this gap).
+
+**Who scored it.** Read and recorded by Claude rather than by the author, which is a departure
+from the rule at the top of this document. That rule exists because an LLM-as-judge inherits the
+failure modes of _the model under test_; a different model reading the output afterwards is a
+reviewer rather than a judge in the loop. Still worth spot-checking, and worth re-reading if the
+judged scores ever start disagreeing with what the app feels like to use.
 
 ### After the fixes — 2026-09-04, `qwen3:4b`, prompts `primer-card.v2`
 

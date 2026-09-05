@@ -40,14 +40,30 @@ Task prompts add only what is specific to their task. The preamble is never dupl
 
 ## Templates
 
-| Prompt               | Task                     | Input                                          | Output                                        | Notes                                                                                                                                           |
-| -------------------- | ------------------------ | ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolve-source`     | Pick the right candidate | Skill name, candidate titles + lead paragraphs | Chosen candidate id, or `none`, with a reason | Runs before anything is written. "None" must be as easy to answer as a pick — a forced choice is how Pompeii becomes a source for Zustand       |
-| `primer-card`        | Synthesize a primer      | Extracted source text, skill name, language    | Title, body, source references                | Must note disagreement between sources rather than silently picking one                                                                         |
-| `classify-skill`     | Assign category and tags | Card and sources                               | Category, tags, confidence                    | Low confidence is stored and surfaced, not hidden                                                                                               |
-| `comparison-card`    | Explain a difference     | Two skills' sources                            | Title, body naming concrete differences       | Generic contrasts ("A is simpler") are a failure                                                                                                |
-| `contrastive-claims` | Separate two neighbours  | Both skills' primers, language                 | Claims true of each and false of the other    | One call per pair, both directions. Judging a technology alone produced claims generic to its category; with the neighbour in view it separates |
-| `question-stem`      | Word the question        | The assembled correct and wrong options        | Stem and explanation                          | Told plainly it is not choosing the answer or writing options. It may not refer to an option by position — they are shuffled after it writes    |
+| Prompt               | Task                      | Input                                          | Output                                                 | Notes                                                                                                                                                                |
+| -------------------- | ------------------------- | ---------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolve-source`     | Pick the right candidate  | Skill name, candidate titles + lead paragraphs | Chosen candidate id, or `none`, with a reason          | Runs before anything is written. "None" must be as easy to answer as a pick — a forced choice is how Pompeii becomes a source for Zustand                            |
+| `primer-card`        | Synthesize a primer       | Extracted source text, skill name, language    | Title, body, source references                         | Must note disagreement between sources rather than silently picking one                                                                                              |
+| `classify-skill`     | Assign category and tags  | Card and sources                               | Category, tags, confidence                             | Low confidence is stored and surfaced, not hidden                                                                                                                    |
+| `comparison-card`    | Explain a difference      | Two skills' sources                            | Title, body naming concrete differences                | Generic contrasts ("A is simpler") are a failure                                                                                                                     |
+| `contrastive-claims` | Separate two neighbours   | Both skills' primers, language                 | Claims true of each and false of the other             | One call per pair, both directions. Judging a technology alone produced claims generic to its category; with the neighbour in view it separates                      |
+| `question-stem`      | Word the question         | The assembled correct and wrong options        | Stem and explanation                                   | Told plainly it is not choosing the answer or writing options. It may not refer to an option by position — they are shuffled after it writes                         |
+| `self-questions`     | Ask about one skill alone | That skill's primer, language                  | Stem, correct answer, three wrong answers, explanation | The stem comes first, which is what makes the wrong answers possible: they are real mechanisms wrong _for this question_ rather than sentences false about the world |
+
+**`self-questions` exists because a graph is not something a user can be asked to supply.** Contrast questions are
+sharper and stay the preferred source, but they need a neighbour, and a CV has what it has — a skill with nothing
+beside it was simply never asked about. Adding a skill has to be enough to be asked about it.
+
+Its shape came from a measurement rather than from taste. Asked for a true statement and three false ones about one
+subject, the model must judge falsity as a property of the world, and scored 8 of 12 with about half the "false" ones
+actually true — the same judgement [ADR-0006](../architecture/adr/0006-pairwise-claims.md) measured into the ground.
+Asked for a **question first** and four answers to it, it only has to know which one the material supports; the wrong
+answers are real mechanisms that are wrong _for this question_. Measured 14 of 17
+(`evals/probes/stem-first-probe.ts`).
+
+One rule differs from every other prompt here: **the stem may name the skill, and no option may.** "How does Java
+handle X?" is how an interviewer asks; an option naming Java is what hands over the answer. An earlier version of the
+probe applied the naming rule to the stem as well and discarded most of the good questions for it.
 
 `contrastive-claims` replaces the planned `generate-question` and `explain-answer` pair, and also replaces the
 `question-claims` + `discriminate-claim` pair that shipped first. Separating a claim from its neighbour **during**
