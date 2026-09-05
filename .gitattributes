@@ -1,0 +1,18 @@
+# Line endings are LF in the repository and LF in every working copy, including Windows.
+#
+# Without this the repository has no opinion, so `core.autocrlf` decides — and it decides
+# differently per machine. A developer with the Git for Windows default checks files out as
+# CRLF; prettier's `endOfLine` defaults to `lf`; `prettier --check` then fails on every file
+# it looks at. That is what happened here: 187 files red on CI, zero locally, because the
+# local working copy happened to hold LF while a fresh checkout did not.
+#
+# `eol=lf` is the half that matters — it overrides `autocrlf` on checkout rather than leaving
+# it to whatever each machine is configured with.
+* text=auto eol=lf
+
+# Binary, so git must never touch the bytes. An icon or a database with line endings
+# "normalised" into it is a corrupted file.
+*.png binary
+*.ico binary
+*.db  binary
+*.exe binary
