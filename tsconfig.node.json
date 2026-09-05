@@ -8,7 +8,11 @@
     "src/shared/**/*",
     // The eval harness never ships in the app bundle, but it imports the real pipeline —
     // so a change there must break here loudly rather than at `npm run eval` time.
-    "evals/**/*.ts"
+    "evals/**/*.ts",
+    // Same reasoning for the E2E suite: without it a type error there waits until Playwright
+    // runs, which is minutes later and after a build.
+    "e2e/**/*.ts",
+    "playwright.config.ts"
   ],
   "compilerOptions": {
     "composite": true,

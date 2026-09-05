@@ -64,4 +64,8 @@ docs/_brief-archive/
 
 # Local working scratchpad — Acta-managed, never committed.
 SCRATCH.md
+# Playwright output — a report is worth keeping only as a CI artifact on failure.
+playwright-report/
+test-results/
+
 # acta:gitignore:end

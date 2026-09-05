@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "vite-node --config vitest.config.ts evals/run.ts",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
