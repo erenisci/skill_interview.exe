@@ -3,13 +3,10 @@ name: CI
 # Windows only — this is a Windows-only product, so building anywhere else proves nothing
 # (docs/operations/ci-cd.md).
 #
-# Two jobs. `build` gates every push: install, type check, lint, test, compile. `package`
-# produces the actual installer, and runs only on a tag or on request — it downloads
-# Electron, rebuilds a native module and emits ~120 MB, which is not worth doing on every
-# commit to a branch.
-#
-# Still missing, and deliberately not stubbed: the E2E stage. No Playwright suite has been
-# written, and an empty job that always passes would be worse than the honest gap.
+# Two jobs. `build` gates every push: install, type check, lint, test, compile, then drive the
+# built app through Playwright. `package` produces the actual installer, and runs only on a tag
+# or on request — it downloads Electron, rebuilds a native module and emits ~120 MB, which is
+# not worth doing on every commit to a branch.
 #
 # The installer is unsigned. First run shows a SmartScreen warning — the true state of a
 # free, unsigned app rather than something to paper over (docs/operations/ci-cd.md).
@@ -51,6 +48,22 @@ jobs:
       # Compiles the app (electron-vite build) without packaging an installer — proves the
       # code builds; producing a distributable is M-8's job.
       - run: npm run build
+
+      # Drives the compiled app. `npx playwright test` rather than `npm run test:e2e`, which
+      # would build a second time; the step above already produced what it launches.
+      #
+      # No `playwright install` — these tests launch the app's own Electron binary, so there is
+      # no browser to download. Each test opens a window, which a windows-latest runner can do.
+      - run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        # Only worth keeping when something failed: the report is how you read a failure that
+        # does not reproduce locally.
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
   package:
     # Only when a release is actually being cut, or when someone asks for a build to try.

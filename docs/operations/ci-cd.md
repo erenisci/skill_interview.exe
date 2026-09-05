@@ -2,7 +2,7 @@
 title: CI/CD
 discipline: ops
 status: active
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # CI/CD
@@ -12,25 +12,28 @@ updated: 2026-09-04
 
 GitHub Actions, on Windows runners — this is a Windows-only product, so building anywhere else proves nothing.
 
-**Wired today** (`.github/workflows/ci.yml`): install, type check, lint, test, a compile-only build, and — on a tag
+**Wired today** (`.github/workflows/ci.yml`): install, type check, lint, test, a compile-only build, the E2E suite,
+and — on a tag
 or a manual dispatch — the Windows installer, uploaded as a workflow artifact. Packaging is kept off ordinary
 branch pushes deliberately: it downloads Electron, rebuilds a native module and emits ~120 MB, which is not worth
 doing per commit.
 
-**Still not wired:** the E2E stage. No Playwright suite has been written, and a job that always passes because it
-runs nothing would be worse than the honest gap.
+**Wired since 2026-09-05:** the E2E stage, as a step of `build` rather than a job of its own — it launches the
+binary the previous step just compiled, so a separate job would only rebuild it. It needs no `playwright install`:
+the tests drive the app's own Electron, not a browser. On failure the HTML report is uploaded, which is how a
+failure that will not reproduce locally gets read.
 
 ## Pipeline Stages
 
-| Stage                    | Command                                               | Blocks merge | Wired                             |
-| ------------------------ | ----------------------------------------------------- | ------------ | --------------------------------- |
-| Install                  | `npm ci`, with the Electron native rebuild            | Yes          | Yes                               |
-| Type check               | `npm run typecheck`                                   | Yes          | Yes                               |
-| Lint                     | `npm run lint`                                        | Yes          | Yes                               |
-| Unit + integration tests | `npm test`                                            | Yes          | Yes                               |
-| E2E                      | `npm run test:e2e` — Playwright with stubbed adapters | Yes          | No — no e2e suite exists          |
-| Build                    | `npm run build` — compiles the app, no installer      | Yes          | Yes                               |
-| Package                  | `npm run package` — produces the Windows installer    | No           | Yes — on tags and manual dispatch |
+| Stage                    | Command                                            | Blocks merge | Wired                             |
+| ------------------------ | -------------------------------------------------- | ------------ | --------------------------------- |
+| Install                  | `npm ci`, with the Electron native rebuild         | Yes          | Yes                               |
+| Type check               | `npm run typecheck`                                | Yes          | Yes                               |
+| Lint                     | `npm run lint`                                     | Yes          | Yes                               |
+| Unit + integration tests | `npm test`                                         | Yes          | Yes                               |
+| E2E                      | `npx playwright test` — drives the compiled app    | Yes          | Yes — a step of `build`           |
+| Build                    | `npm run build` — compiles the app, no installer   | Yes          | Yes                               |
+| Package                  | `npm run package` — produces the Windows installer | No           | Yes — on tags and manual dispatch |
 
 **The eval suite does not run in CI.** It needs a real model, which means a multi-gigabyte download and a GPU-less
 runner producing results that would not match a user's machine. Worse, the judged metrics — groundedness, distractor
@@ -57,7 +60,7 @@ step, and it is **unsigned** — there is no certificate, so first run shows Sma
 
 Merging to `main` requires:
 
-- All wired blocking stages green — currently install, type check, lint, test, and the compile-only build.
+- All wired blocking stages green — install, type check, lint, test, the compile-only build, and the E2E suite.
 - [../engineering/self-review-checklist.md](../engineering/self-review-checklist.md) walked.
 - If a prompt changed: a local eval run, with its scores recorded in the eval results table.
 
