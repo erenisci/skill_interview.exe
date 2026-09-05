@@ -4,6 +4,7 @@ import contrastiveClaimsV2 from './contrastive-claims.v2.md?raw';
 import primerCardV2 from './primer-card.v2.md?raw';
 import questionStemV1 from './question-stem.v1.md?raw';
 import resolveSourceV2 from './resolve-source.v2.md?raw';
+import selfQuestionsV1 from './self-questions.v1.md?raw';
 
 /**
  * Prompts are product code: a prompt edit changes user-visible output without changing a
@@ -70,6 +71,21 @@ export const COMPARISON_CARD: Prompt = {
 export const CONTRASTIVE_CLAIMS: Prompt = {
   version: 'contrastive-claims.v2',
   template: contrastiveClaimsV2,
+};
+
+/**
+ * Questions about one skill, from its own material, with no sibling to borrow from.
+ *
+ * The stem comes first, and that is the whole design. Asked for a true statement and three
+ * false ones about a subject, the model has to judge falsity as a property of the world and
+ * measured 8 of 12 with half the "false" ones true. Asked for a question and four answers, it
+ * only has to know which one the material supports — the wrong answers are real mechanisms
+ * that are wrong *here*, which is the judgement it makes well. Measured 14 of 17
+ * (`evals/probes/stem-first-probe.ts`).
+ */
+export const SELF_QUESTIONS: Prompt = {
+  version: 'self-questions.v1',
+  template: selfQuestionsV1,
 };
 
 export const QUESTION_STEM: Prompt = {

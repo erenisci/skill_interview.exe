@@ -12,6 +12,7 @@ import {
   CONTRASTIVE_CLAIMS,
   LANGUAGE_NAMES,
   QUESTION_STEM,
+  SELF_QUESTIONS,
   SYSTEM_PREAMBLE,
   render,
 } from '../llm/prompts';
@@ -137,11 +138,21 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
       return ok(undefined);
     }
 
+    // A question the user rejected must not return because the job ran again, and a claim
+    // already asked about must not be asked twice.
+    const askedNow = new Set(deps.questions.askedClaimTexts(skill.id).map(normalizeClaim));
+
     const neighbours = borrowFrom(deps, skill.id, random);
     if (neighbours.length === 0) {
-      // Not an error, and not permanent: nothing else has been researched yet. Each
-      // neighbour's own job re-enqueues this one once it exists.
-      log.info('pipeline', 'no neighbours yet, questions deferred', { skillId: skill.id });
+      // **Not a dead end any more.** A skill with nothing to contrast against used to stop
+      // here and wait for a neighbour that a real CV may never provide. It is asked about
+      // from its own material instead — the reason someone adds a skill is to be asked
+      // about it, and that cannot depend on what else they happened to add.
+      const alone = await generateSelfQuestions(skill, primer, missing, deps, askedNow, random);
+      log.info('pipeline', 'questions from own material, no neighbours', {
+        skillId: skill.id,
+        written: alone,
+      });
       return ok(undefined);
     }
 
@@ -219,6 +230,14 @@ export function createQuestionsHandler(deps: QuestionsDeps): JobHandler {
         asked.add(normalizeClaim(correct.text));
         written += 1;
       }
+    }
+
+    // Contrast questions are sharper — a wrong answer that is a true statement about a
+    // technology the reader also knows is the confusion an interview actually probes. So they
+    // are written first, and the skill's own material fills whatever is still missing rather
+    // than leaving the day short.
+    if (written < missing) {
+      written += await generateSelfQuestions(skill, primer, missing - written, deps, asked, random);
     }
 
     // A neighbour with no questions of its own can now be asked about — but only if this
@@ -449,6 +468,136 @@ async function ensurePairClaims(
     })),
   );
   return ok(true);
+}
+
+const SelfQuestionsSchema = structured(
+  'self-questions',
+  z.object({
+    questions: z.array(
+      z.object({
+        stem: z.string(),
+        correct: z.string(),
+        wrong: z.array(z.string()),
+        explanation: z.string(),
+      }),
+    ),
+  }),
+);
+
+/**
+ * Questions about one skill, from its own material.
+ *
+ * **This is what makes a lone skill askable.** Contrast questions are sharper and stay the
+ * preferred source, but they need a neighbour, and a graph is a thing the user cannot be
+ * asked to supply — a CV has what it has. Adding a skill has to be enough to be asked about
+ * it, which is the whole reason someone adds one.
+ *
+ * The stem comes first, and that is the design rather than a detail. Asked for a true
+ * statement and three false ones, the model must judge falsity as a property of the world,
+ * and measured 8 of 12 with about half the "false" ones actually true — the same judgement
+ * ADR-0006 measured into the ground. Asked for a question and four answers, it only has to
+ * know which one the material supports; the wrong answers are real mechanisms that are wrong
+ * *for this question*. Measured 14 of 17 (`evals/probes/stem-first-probe.ts`).
+ *
+ * Options carry no `sourceSkillId`: nothing here was borrowed from a sibling, and recording
+ * one would misattribute a model-written option to a skill that never wrote it.
+ */
+export async function generateSelfQuestions(
+  skill: Skill,
+  primer: Card,
+  wanted: number,
+  deps: QuestionsDeps,
+  asked: ReadonlySet<string>,
+  random: () => number,
+): Promise<number> {
+  if (wanted <= 0) return 0;
+
+  const generated = await deps.llm.generate({
+    system: SYSTEM_PREAMBLE,
+    prompt: render(SELF_QUESTIONS, {
+      SKILL: skill.name,
+      MATERIAL: truncate(primer.bodyMd, MAX_MATERIAL_CHARS),
+      LANGUAGE: languageName(skill.contentLang),
+    }),
+    schema: SelfQuestionsSchema,
+  });
+  if (!generated.ok) {
+    log.info('pipeline', 'self questions failed', {
+      skillId: skill.id,
+      code: generated.error.code,
+    });
+    return 0;
+  }
+
+  let written = 0;
+  const dropped: string[] = [];
+
+  for (const candidate of generated.value.value.questions) {
+    if (written >= wanted) break;
+    if (asked.has(normalizeClaim(candidate.correct))) continue;
+
+    // No rationale, deliberately. On a contrast question it carries real information — which
+    // technology this option describes, which is what makes a wrong answer instructive. Here
+    // there is no such attribution, and filling it with "a real mechanism, but not this one"
+    // would put the same sentence under every wrong option in every export.
+    const options: NewOption[] = shuffle(
+      [
+        { text: candidate.correct, rationale: '', isCorrect: true, sourceSkillId: null },
+        ...candidate.wrong.map((text) => ({
+          text,
+          rationale: '',
+          isCorrect: false,
+          sourceSkillId: null,
+        })),
+      ],
+      random,
+    );
+
+    // The same validator the contrast path uses. Its naming rule applies to options only,
+    // which is exactly right here: "How does Java handle X?" is how an interviewer asks,
+    // while an *option* naming Java would hand over the answer.
+    const violations = validateQuestion({
+      stem: candidate.stem,
+      explanation: candidate.explanation,
+      options: options.map(({ text, isCorrect, sourceSkillId }) => ({
+        text,
+        isCorrect,
+        sourceSkillId,
+      })),
+      involvedNames: [skill.name],
+    });
+    if (violations.length > 0) {
+      dropped.push(violations.join('+'));
+      continue;
+    }
+    if (looksLikeTrivia(candidate.stem) || options.some((o) => looksLikeTrivia(o.text))) {
+      dropped.push('trivia');
+      continue;
+    }
+
+    deps.questions.insertWithOptions(
+      {
+        skillId: skill.id,
+        cardId: primer.id,
+        stem: candidate.stem,
+        explanation: candidate.explanation,
+        difficulty: null,
+        contentLang: skill.contentLang,
+        model: generated.value.model,
+        promptVersion: SELF_QUESTIONS.version,
+      },
+      options,
+    );
+    written += 1;
+  }
+
+  if (dropped.length > 0) {
+    log.info('pipeline', 'self questions dropped', {
+      skillId: skill.id,
+      reasons: dropped.join(', '),
+    });
+  }
+  return written;
 }
 
 async function buildOne(

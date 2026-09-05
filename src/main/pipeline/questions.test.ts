@@ -1141,3 +1141,114 @@ describe('question generation — a distractor that teaches something', () => {
     expect(sources).not.toContain(unrelated.id);
   });
 });
+
+describe('question generation — a skill on its own', () => {
+  const SELF = {
+    questions: [
+      {
+        stem: 'How does it handle concurrent connections?',
+        correct: 'an event loop over non-blocking sockets',
+        wrong: [
+          'one operating system thread per connection',
+          'one operating system process per connection',
+          'a thread pool sized to the core count',
+        ],
+        explanation: 'The material describes an asynchronous, event-driven design.',
+      },
+    ],
+  };
+
+  it('asks about a skill that has no neighbours at all', async () => {
+    // The reason someone adds a skill is to be asked about it, and that cannot depend on
+    // what else they happened to add. This used to stop and wait for a neighbour a real CV
+    // may never provide.
+    const lonely = addSkill('Redis');
+    addPrimer(lonely);
+
+    const result = await handlerWith(llm({ 'self-questions': () => SELF }))(jobFor(lonely.id));
+
+    expect(result.ok).toBe(true);
+    const written = questions.listBySkill(lonely.id);
+    expect(written).toHaveLength(1);
+    expect(written[0]?.options).toHaveLength(4);
+    expect(written[0]?.options.filter((o) => o.isCorrect)).toHaveLength(1);
+  });
+
+  it('attributes nothing to a sibling, because nothing was borrowed', async () => {
+    const lonely = addSkill('Redis');
+    addPrimer(lonely);
+
+    await handlerWith(llm({ 'self-questions': () => SELF }))(jobFor(lonely.id));
+
+    const sources = questions
+      .listBySkill(lonely.id)
+      .flatMap((q) => q.options.map((o) => o.sourceSkillId));
+    expect(sources.every((id) => id === null)).toBe(true);
+  });
+
+  it('drops a self-question whose option names its own subject', async () => {
+    const lonely = addSkill('Redis');
+    addPrimer(lonely);
+
+    const leaky = llm({
+      'self-questions': () => ({
+        questions: [
+          {
+            stem: 'How does it store data?',
+            correct: 'Redis keeps the working set in memory',
+            wrong: [
+              'it writes every page to disk first',
+              'it streams rows from a remote store',
+              'it memory-maps a single file',
+            ],
+            explanation: 'because',
+          },
+        ],
+      }),
+    });
+
+    await handlerWith(leaky)(jobFor(lonely.id));
+    expect(questions.listBySkill(lonely.id)).toHaveLength(0);
+  });
+
+  it('drops a self-question that is trivia, however well formed', async () => {
+    const lonely = addSkill('Redis');
+    addPrimer(lonely);
+
+    const trivia = llm({
+      'self-questions': () => ({
+        questions: [
+          {
+            stem: 'Under which licence is the core software released?',
+            correct: 'a permissive licence with an added commercial clause',
+            wrong: [
+              'a strong copyleft licence',
+              'a weak copyleft licence',
+              'a public domain dedication',
+            ],
+            explanation: 'because',
+          },
+        ],
+      }),
+    });
+
+    await handlerWith(trivia)(jobFor(lonely.id));
+    expect(questions.listBySkill(lonely.id)).toHaveLength(0);
+  });
+
+  it('fills what the contrast path could not, rather than leaving the day short', async () => {
+    const { nginx } = pairWithNeighbour();
+    const thin = llm({
+      // One claim per side: enough to write claims, never enough to fill five questions.
+      'contrastive-claims': () => ({
+        aClaims: ['buffers slow uploads'],
+        bClaims: ['reads container labels'],
+      }),
+      'self-questions': () => SELF,
+    });
+
+    await handlerWith(thin)(jobFor(nginx.id));
+
+    expect(questions.listBySkill(nginx.id).length).toBeGreaterThan(0);
+  });
+});
