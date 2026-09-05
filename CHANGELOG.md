@@ -8,6 +8,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-05
+
+First release. The version in `package.json` has said 0.1.0 since the repository was created and
+nothing was ever tagged, so everything below shipped here — including the documentation scaffold
+that an earlier entry claimed as a release of its own.
+
 ### Added
 
 - Electron + TypeScript + React application scaffold, with the renderer sandboxed and all privileged work behind typed IPC.
@@ -50,6 +56,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
   wait for a neighbour a real CV may never provide; adding a skill is now enough to be asked about it.
 - A kept question can be starred on its own, before it has been answered, as well as with its card.
 - Kept items show a card with the questions drawn from it underneath, numbered.
+
+- Documentation set and the Acta brain — the scaffold everything above was built against.
 
 ### Changed
 
@@ -94,9 +102,3 @@ language)` — was rejected while `Java`, the Indonesian island, was accepted in
 
 - Turkish content language, and the setting that chose it. See **Changed** above — it was measured and withdrawn
   before this release rather than shipped half-working.
-
-## [0.1.0] - 2026-09-02
-
-### Added
-
-- Initial project scaffold: documentation set and Acta brain.
