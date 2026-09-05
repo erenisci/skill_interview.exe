@@ -291,7 +291,13 @@ export function DailyView(): React.JSX.Element {
 
     return (
       <article key={key} className="panel question-of">
-        <p style={{ fontWeight: 600, marginTop: 0, marginBottom: 12 }}>{question.stem}</p>
+        {/* The star is here rather than below the answer: keeping a question is not a verdict
+            on it, and a reader may want to save one before working it out. Flagging is the
+            opposite and stays behind the reveal. */}
+        <div className="question-head">
+          <p style={{ fontWeight: 600, margin: 0 }}>{question.stem}</p>
+          {keepQuestionButton(question.id)}
+        </div>
         <ul className="list" style={{ gap: 4 }}>
           {question.options.map((option) => {
             const picked = chosen === option.id;
@@ -322,10 +328,9 @@ export function DailyView(): React.JSX.Element {
             <p className="card-body" style={{ marginTop: 12 }}>
               {question.explanation}
             </p>
-            {/* Both after the answer, not before: a verdict on a question the reader has not
+            {/* After the answer, not before: a verdict on a question the reader has not
                 engaged with yet is not a verdict worth recording. */}
             <div className="row question-actions">
-              {keepQuestionButton(question.id)}
               <FlagMenu onFlag={(reason, target) => void flag(question.id, reason, target)} />
             </div>
           </>

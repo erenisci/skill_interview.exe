@@ -1,7 +1,7 @@
 import type { Card, Favorite, Question, Skill } from '@shared/domain';
 import type { FavoriteEntry } from '@shared/ipc';
 import { describe, expect, it } from 'vitest';
-import { groupByTag, tagsFor } from './FavoritesView';
+import { groupByTag, groupKept, tagsFor } from './FavoritesView';
 
 /**
  * The tagging rule, which decides what a person browsing Kept can find and how.
@@ -140,5 +140,55 @@ describe('groupByTag', () => {
 
   it('produces nothing from an empty list', () => {
     expect(groupByTag([])).toEqual([]);
+  });
+});
+
+describe('groupKept', () => {
+  const q = (id: number, cardId: number): FavoriteEntry => ({
+    kind: 'question',
+    favorite: { ...favorite(id), itemType: 'question', itemId: id },
+    skill: skill(1, 'Java'),
+    question: { ...question(), id, cardId },
+  });
+
+  it('puts a card first and the questions drawn from it under it', () => {
+    const groups = groupKept([q(10, 1), primer(1, skill(1, 'Java')), q(11, 1)]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.[0]?.kind).toBe('card');
+    expect(groups[0]?.slice(1).map((e) => (e.kind === 'question' ? e.question.id : 0))).toEqual([
+      10, 11,
+    ]);
+  });
+
+  it('keeps each card with its own questions', () => {
+    const java = skill(1, 'Java');
+    const groups = groupKept([primer(1, java), primer(2, java), q(10, 2), q(11, 1)]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.slice(1).map((e) => (e.kind === 'question' ? e.question.id : 0))).toEqual([
+      11,
+    ]);
+    expect(groups[1]?.slice(1).map((e) => (e.kind === 'question' ? e.question.id : 0))).toEqual([
+      10,
+    ]);
+  });
+
+  it('still shows a question whose card was not kept', () => {
+    // Keeping a question on its own is a deliberate act, not an accident to hide.
+    const groups = groupKept([primer(1, skill(1, 'Java')), q(10, 99)]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups[1]).toHaveLength(1);
+  });
+
+  it('collects every orphaned question into one bundle rather than one each', () => {
+    const groups = groupKept([q(10, 98), q(11, 99)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveLength(2);
+  });
+
+  it('produces nothing from an empty list', () => {
+    expect(groupKept([])).toEqual([]);
   });
 });

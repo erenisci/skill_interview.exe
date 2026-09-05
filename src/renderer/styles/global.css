@@ -513,3 +513,62 @@ button.flag:hover:not(:disabled) {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
+
+/* Who wrote a card. Quieter than the sources above it — provenance a reader may want once,
+   not something to read past every time. */
+.byline {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.75;
+  letter-spacing: 0.02em;
+}
+
+.byline-model {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+}
+
+/* The stem and its star share a line; the star does not shrink when the stem is long. */
+.question-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.question-head > button {
+  flex: none;
+}
+
+/* A kept question sits under the card it came from, indented and tied to it by a rule —
+   the same relation the daily view shows, kept when the pair is filed away. */
+.kept-question {
+  margin-left: 22px;
+  margin-top: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Numbered within its card, so "the second question about this" is readable at a glance. */
+.kept-ordinal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 9px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}

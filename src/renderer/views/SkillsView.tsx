@@ -260,8 +260,13 @@ export function SkillsView({ status, onOpenSetup }: Props): React.JSX.Element {
                               </span>
                             ))}
                           </p>
-                          <p className="muted" style={{ fontSize: 12 }}>
-                            {card.model} · {card.promptVersion}
+                          {/* Which model and which prompt wrote this is provenance, not
+                              decoration: it is what makes "was this any good?" answerable
+                              after a prompt changes. But a bare `qwen3:4b · primer-card.v2`
+                              reads as debug output, so the prompt version — the half only a
+                              maintainer needs — moves into the tooltip. */}
+                          <p className="byline" title={`Prompt ${card.promptVersion}`}>
+                            Written by <span className="byline-model">{card.model}</span>
                           </p>
                         </article>
                       ))
